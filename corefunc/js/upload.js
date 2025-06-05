@@ -46,13 +46,25 @@ function handleFiles(files) {
     "image/png",
     "audio/mp3",
     "audio/mpeg",
+    "audio/wav",
+    "audio/wave",
     "video/mp4",
+    "video/mpeg",
+    "video/quicktime",
+    "video/x-msvideo",
   ];
   const maxSize = 8 * 1024 * 1024; // 8MB
 
   Array.from(files).forEach((file) => {
+    // Debug: Log the actual file type
+    console.log(`File: ${file.name}, Type: "${file.type}", Size: ${file.size}`);
+
     if (!acceptedTypes.includes(file.type)) {
-      addFileToList(file, "error", "Unsupported file type");
+      console.log(
+        `Rejected - File type "${file.type}" not in accepted types:`,
+        acceptedTypes
+      );
+      addFileToList(file, "error", `Unsupported file type: ${file.type}`);
       return;
     }
 
@@ -76,8 +88,14 @@ async function uploadToAPI(file, fileId) {
     // For now, we'll upload without auth token (will add Cognito later)
     // const authToken = await getAuthToken();
 
+    console.log(
+      `Uploading file: ${file.name}, Size: ${file.size} bytes, Type: ${file.type}`
+    );
+
     // Read file as ArrayBuffer for binary upload
     const fileData = await readFileAsArrayBuffer(file);
+
+    console.log(`File data size: ${fileData.byteLength} bytes`);
 
     // Upload to API Gateway
     const response = await fetch(API_CONFIG.uploadEndpoint, {
@@ -88,11 +106,14 @@ async function uploadToAPI(file, fileId) {
       body: fileData,
     });
 
+    console.log(`Response status: ${response.status}`);
+
     if (response.ok) {
       const result = await response.json();
       markUploadComplete(fileId, result);
     } else {
       const errorText = await response.text();
+      console.error("Upload failed with response:", errorText);
       markUploadError(fileId, `Upload failed: ${errorText}`);
     }
   } catch (error) {
