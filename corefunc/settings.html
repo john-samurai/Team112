@@ -1,46 +1,48 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Settings - Monash Bird Buddies</title>
-    <link rel="stylesheet" href="../shared/css/common.css">
-    <link rel="stylesheet" href="css/corefunc.css">
-</head>
-<body>
+    <link rel="stylesheet" href="../shared/css/common.css" />
+    <link rel="stylesheet" href="css/corefunc.css" />
+  </head>
+  <body>
     <nav class="navbar">
-        <div class="nav-container">
-            <a href="../index.html" class="logo">MBB</a>
-            <div class="nav-links">
-                <a href="upload.html">File Upload</a>
-                <a href="search.html">Search & Management</a>
-                <a href="settings.html">Settings</a>
-                <a href="#" onclick="showSignOutModal()">Sign out</a>
-            </div>
+      <div class="nav-container">
+        <a href="../index.html" class="logo">MBB</a>
+        <div class="nav-links">
+          <a href="upload.html">File Upload</a>
+          <a href="search.html">Search & Management</a>
+          <a href="settings.html">Settings</a>
+          <a href="#" onclick="showSignOutModal()">Sign out</a>
         </div>
+      </div>
     </nav>
 
     <div class="main-layout">
-        <div class="container">
-            <h1 class="page-title">Settings</h1>
-            <div class="placeholder">
-                <p class="placeholder-text">This functionality will be implemented later.</p>
-            </div>
+      <div class="container">
+        <h1 class="page-title">Settings</h1>
+        <div class="placeholder">
+          <p class="placeholder-text">
+            This functionality will be implemented later.
+          </p>
         </div>
+      </div>
     </div>
 
     <!-- Sign Out Modal -->
     <div class="modal" id="signOutModal">
-        <div class="modal-content">
-            <h3 class="modal-title">Are you sure you want to sign out?</h3>
-            <div class="modal-buttons">
-                <button class="btn-submit" onclick="signOut()">Yes</button>
-                <button class="btn-secondary" onclick="hideSignOutModal()">No</button>
-            </div>
+      <div class="modal-content">
+        <h3 class="modal-title">Are you sure you want to sign out?</h3>
+        <div class="modal-buttons">
+          <button class="btn-submit" onclick="signOut()">Yes</button>
+          <button class="btn-secondary" onclick="hideSignOutModal()">No</button>
         </div>
+      </div>
     </div>
 
     <script src="../shared/js/common.js"></script>
-    <script src="js/corefunc.js"></script>
-</body>
+    <script src="js/settings.js"></script>
+  </body>
 </html>
