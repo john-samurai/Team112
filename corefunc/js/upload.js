@@ -251,11 +251,50 @@ function formatFileSize(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 }
 
-// Function to get auth token (to be implemented when Cognito is ready)
-async function getAuthToken() {
-  // This should be implemented when your teammate completes Cognito
-  // Return the JWT token from Cognito
-  return localStorage.getItem("authToken") || "";
+// Function to get auth token
+async function uploadToAPI(file, fileId) {
+  try {
+    // Get authentication token from session storage
+    const authToken = getAuthenticationToken();
+
+    if (!authToken) {
+      markUploadError(fileId, "Authentication required. Please sign in.");
+      return;
+    }
+
+    console.log(
+      `Uploading file: ${file.name}, Size: ${file.size} bytes, Type: ${file.type}`
+    );
+
+    // Read file as ArrayBuffer for binary upload
+    const fileData = await readFileAsArrayBuffer(file);
+
+    console.log(`File data size: ${fileData.byteLength} bytes`);
+
+    // Upload to API Gateway with authentication
+    const response = await fetch(API_CONFIG.uploadEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": file.type || "application/octet-stream",
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: fileData,
+    });
+
+    console.log(`Response status: ${response.status}`);
+
+    if (response.ok) {
+      const result = await response.json();
+      markUploadComplete(fileId, result);
+    } else {
+      const errorText = await response.text();
+      console.error("Upload failed with response:", errorText);
+      markUploadError(fileId, `Upload failed: ${errorText}`);
+    }
+  } catch (error) {
+    console.error("Upload error:", error);
+    markUploadError(fileId, "Upload failed: " + error.message);
+  }
 }
 
 // Initialize upload functionality on page load

@@ -14,7 +14,7 @@
       <div class="nav-container">
         <a href="index.html" class="logo">MBB</a>
         <div class="nav-links">
-          <a href="auth/signin.html" class="btn-signin">Sign in</a>
+          <!-- Navigation will be updated by common.js based on authentication status -->
         </div>
       </div>
     </nav>
@@ -27,9 +27,20 @@
           application. Upload images, audio, and videos to automatically
           identify bird species and build your collection
         </p>
-        <a href="auth/signin.html" class="btn-primary">Get Started</a>
+        <!-- Removed Get Started button -->
       </div>
     </main>
+
+    <!-- Sign Out Modal for main page -->
+    <div class="modal" id="signOutModal">
+      <div class="modal-content">
+        <h3 class="modal-title">Are you sure you want to sign out?</h3>
+        <div class="modal-buttons">
+          <button class="btn-submit" onclick="confirmSignOut()">Yes</button>
+          <button class="btn-secondary" onclick="hideSignOutModal()">No</button>
+        </div>
+      </div>
+    </div>
 
     <script src="shared/js/common.js"></script>
   </body>

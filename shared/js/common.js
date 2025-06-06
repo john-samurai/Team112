@@ -49,25 +49,56 @@ function getAuthenticationToken() {
 // Update navbar based on authentication status
 function updateNavbar() {
   const navLinks = document.querySelector(".nav-links");
+  const currentPage = window.location.pathname.split("/").pop();
 
   if (isAuthenticatedState && navLinks) {
+    // Determine correct paths based on current page location
+    let uploadPath, searchPath, settingsPath;
+
+    if (
+      currentPage === "index.html" ||
+      window.location.pathname === "/" ||
+      window.location.pathname.endsWith("/")
+    ) {
+      // On main page
+      uploadPath = "corefunc/upload.html";
+      searchPath = "corefunc/search.html";
+      settingsPath = "corefunc/settings.html";
+    } else {
+      // On other pages
+      uploadPath = "../corefunc/upload.html";
+      searchPath = "../corefunc/search.html";
+      settingsPath = "../corefunc/settings.html";
+    }
+
     // Show authenticated navigation
     navLinks.innerHTML = `
-            <a href="../corefunc/upload.html">File Upload</a>
-            <a href="../corefunc/search.html">Search & Management</a>
-            <a href="../corefunc/settings.html">Settings</a>
-            <a href="#" onclick="showSignOutModal()">Sign out</a>
-        `;
+      <a href="${uploadPath}">File Upload</a>
+      <a href="${searchPath}">Search & Management</a>
+      <a href="${settingsPath}">Settings</a>
+      <a href="#" onclick="showSignOutModal()">Sign out</a>
+    `;
 
     // Update any user info displays
     updateUserDisplay();
   } else if (navLinks) {
     // Show unauthenticated navigation
-    const currentPage = window.location.pathname.split("/").pop();
     if (currentPage !== "signin.html" && currentPage !== "signup.html") {
+      let signinPath;
+
+      if (
+        currentPage === "index.html" ||
+        window.location.pathname === "/" ||
+        window.location.pathname.endsWith("/")
+      ) {
+        signinPath = "auth/signin.html";
+      } else {
+        signinPath = "../auth/signin.html";
+      }
+
       navLinks.innerHTML = `
-                <a href="auth/signin.html" class="btn-signin">Sign in</a>
-            `;
+        <a href="${signinPath}" class="btn-signin">Sign in</a>
+      `;
     }
   }
 }
@@ -94,6 +125,12 @@ function showSignOutModal() {
   const modal = document.getElementById("signOutModal");
   if (modal) {
     modal.classList.add("active");
+  } else {
+    console.error("Sign out modal not found");
+    // Fallback - direct sign out
+    if (confirm("Are you sure you want to sign out?")) {
+      performSignOut();
+    }
   }
 }
 
@@ -104,15 +141,50 @@ function hideSignOutModal() {
   }
 }
 
-function signOut() {
-  // Use the signOut function from auth.js if available
-  if (typeof window.signOut === "function") {
-    window.signOut();
-  } else {
-    // Fallback signout
-    sessionStorage.clear();
-    window.location.href = "../index.html";
+function confirmSignOut() {
+  hideSignOutModal();
+  performSignOut();
+}
+
+function performSignOut() {
+  try {
+    // Initialize Cognito User Pool if available
+    if (typeof AmazonCognitoIdentity !== "undefined") {
+      const userPool = new AmazonCognitoIdentity.CognitoUserPool({
+        UserPoolId: "ap-southeast-2_rXnAUdmtr",
+        ClientId: "77so3j6u54v3qk4qttle2k8tsk",
+      });
+
+      const cognitoUser = userPool.getCurrentUser();
+      if (cognitoUser) {
+        cognitoUser.signOut();
+      }
+    }
+  } catch (error) {
+    console.log(
+      "Cognito signout error (this is normal if user pool not initialized):",
+      error
+    );
   }
+
+  // Clear all session storage
+  sessionStorage.removeItem("accessToken");
+  sessionStorage.removeItem("idToken");
+  sessionStorage.removeItem("isAuthenticated");
+  sessionStorage.removeItem("currentUser");
+  sessionStorage.clear();
+
+  // Update state
+  isAuthenticatedState = false;
+  currentUser = null;
+
+  // Redirect to home page
+  window.location.href = "../index.html";
+}
+
+// Legacy signOut function for compatibility
+function signOut() {
+  showSignOutModal();
 }
 
 // Utility functions
