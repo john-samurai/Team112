@@ -60,15 +60,15 @@ function updateNavbar() {
       window.location.pathname === "/" ||
       window.location.pathname.endsWith("/")
     ) {
-      // On main page
+      // On main page - FIXED PATHS
       uploadPath = "corefunc/upload.html";
       searchPath = "corefunc/search.html";
       settingsPath = "corefunc/settings.html";
     } else {
-      // On other pages
-      uploadPath = "../corefunc/upload.html";
-      searchPath = "../corefunc/search.html";
-      settingsPath = "../corefunc/settings.html";
+      // On other pages (inside corefunc folder)
+      uploadPath = "upload.html";
+      searchPath = "search.html";
+      settingsPath = "settings.html";
     }
 
     // Show authenticated navigation
