@@ -9,6 +9,77 @@
     <!-- Cognito Authentication -->
     <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1485.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.12/dist/amazon-cognito-identity.min.js"></script>
+
+    <!-- FORCE SUB-NAV TO BE VISIBLE -->
+    <style>
+      /* Override any conflicting styles */
+      .force-subnav-visible {
+        position: relative !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        background: #f8fafc !important;
+        border-bottom: 2px solid #e2e8f0 !important;
+        padding: 1rem 0 !important;
+        margin: 0 !important;
+        z-index: 999 !important;
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        height: auto !important;
+      }
+
+      .force-subnav-container {
+        max-width: 1200px !important;
+        margin: 0 auto !important;
+        padding: 0 2rem !important;
+        display: block !important;
+      }
+
+      .force-subnav-links {
+        display: flex !important;
+        gap: 1.5rem !important;
+        flex-wrap: wrap !important;
+        justify-content: flex-start !important;
+      }
+
+      .force-subnav-links a {
+        display: inline-block !important;
+        color: #64748b !important;
+        text-decoration: none !important;
+        font-weight: 500 !important;
+        padding: 0.75rem 1rem !important;
+        border-bottom: 3px solid transparent !important;
+        transition: all 0.2s ease !important;
+        white-space: nowrap !important;
+        border-radius: 0.5rem 0.5rem 0 0 !important;
+        background: transparent !important;
+      }
+
+      .force-subnav-links a:hover,
+      .force-subnav-links a.active {
+        color: #2563eb !important;
+        border-bottom-color: #2563eb !important;
+        background: rgba(37, 99, 235, 0.1) !important;
+      }
+
+      .force-subnav-links a.active {
+        font-weight: 600 !important;
+      }
+
+      /* Ensure main content starts below sub-nav */
+      .main-layout {
+        padding-top: 6rem !important; /* Extra space for sub-nav */
+        min-height: 100vh !important;
+      }
+
+      /* Debug border to make sub-nav visible */
+      .debug-border {
+        border: 3px solid red !important;
+        background: yellow !important;
+      }
+    </style>
   </head>
   <body>
     <nav class="navbar">
@@ -23,10 +94,10 @@
       </div>
     </nav>
 
-    <!-- Sub-navigation for Search -->
-    <div class="sub-nav">
-      <div class="sub-nav-container">
-        <div class="sub-nav-links">
+    <!-- FORCED VISIBLE SUB-NAVIGATION -->
+    <div class="force-subnav-visible debug-border">
+      <div class="force-subnav-container">
+        <div class="force-subnav-links">
           <a href="#" data-search-type="tags-counts" class="active"
             >Images/Videos Search by Tags & Counts</a
           >
@@ -42,6 +113,21 @@
     <div class="main-layout">
       <div class="container">
         <h1 class="page-title">Search & Management</h1>
+
+        <!-- Debug info -->
+        <div
+          style="
+            background: #e0f2fe;
+            border: 2px solid #0891b2;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            border-radius: 0.5rem;
+          ">
+          <strong>🔍 DEBUG:</strong> Can you see the yellow sub-navigation bar
+          with red border above this message?<br />
+          <strong>Current tab:</strong>
+          <span id="debugCurrentTab">tags-counts</span>
+        </div>
 
         <!-- Images/Videos Search by Tags & Counts -->
         <div class="search-form" id="tags-counts-form">
@@ -190,10 +276,7 @@
             <h3 class="results-title" id="resultsTitle">Search Results</h3>
             <p class="results-count" id="resultsCount">Found 0 files</p>
           </div>
-
-          <div class="results-grid" id="searchResults">
-            <!-- Results will be populated here -->
-          </div>
+          <div class="results-grid" id="searchResults"></div>
         </div>
 
         <!-- Floating Action Bar -->
@@ -222,7 +305,6 @@
         <p class="modal-info">
           Selected Files: <span id="addTagsFileCount">0</span> files
         </p>
-
         <div class="modal-section">
           <h4>Add New Tags:</h4>
           <div class="tag-count-pairs" id="addTagsPairs">
@@ -252,11 +334,9 @@
             + Add Another Tag
           </button>
         </div>
-
         <div class="modal-preview">
           <strong>Preview:</strong> <span id="addTagsPreview">{}</span>
         </div>
-
         <hr class="modal-divider" />
         <div class="modal-buttons">
           <button class="btn-secondary" onclick="hideAddTagsModal()">
@@ -277,14 +357,10 @@
         <p class="modal-info">
           Selected Files: <span id="removeTagsFileCount">0</span> files
         </p>
-
         <div class="modal-section">
           <h4>Current Tags in Selected Files:</h4>
-          <div class="current-tags" id="currentTagsDisplay">
-            <!-- Will be populated dynamically -->
-          </div>
+          <div class="current-tags" id="currentTagsDisplay"></div>
         </div>
-
         <div class="modal-section">
           <h4>Or specify tags to remove:</h4>
           <div class="tag-count-pairs" id="removeTagsPairs">
@@ -314,11 +390,9 @@
             + Add Tag to Remove
           </button>
         </div>
-
         <div class="modal-preview">
           <strong>Preview:</strong> <span id="removeTagsPreview">{}</span>
         </div>
-
         <hr class="modal-divider" />
         <div class="modal-buttons">
           <button class="btn-secondary" onclick="hideRemoveTagsModal()">
@@ -339,16 +413,12 @@
         <div class="warning-section">
           <p class="warning-text">⚠️ Warning: This action cannot be undone</p>
         </div>
-
         <div class="modal-section">
           <p>
             You are about to delete <span id="deleteFileCount">0</span> files:
           </p>
-          <div class="files-to-delete" id="filesToDeleteList">
-            <!-- Will be populated dynamically -->
-          </div>
+          <div class="files-to-delete" id="filesToDeleteList"></div>
         </div>
-
         <div class="modal-section">
           <p><strong>This will:</strong></p>
           <ul class="action-list">
@@ -357,7 +427,6 @@
             <li>✓ Remove all database entries</li>
           </ul>
         </div>
-
         <div class="confirmation-section">
           <label for="deleteConfirmation">Type "DELETE" to confirm:</label>
           <input
@@ -366,7 +435,6 @@
             class="confirmation-input"
             placeholder="DELETE" />
         </div>
-
         <hr class="modal-divider" />
         <div class="modal-buttons">
           <button class="btn-secondary" onclick="hideDeleteFilesModal()">
@@ -395,6 +463,189 @@
     </div>
 
     <script src="../shared/js/common.js"></script>
-    <script src="js/search.js"></script>
+    <script>
+      // Enhanced search.js with debug info
+      let selectedFiles = [];
+      let currentSearchResults = [];
+      let searchUploadedFile = null;
+
+      function initializeSearch() {
+        console.log("🔍 Initializing search functionality");
+
+        const searchTabs = document.querySelectorAll(".force-subnav-links a");
+        console.log("📋 Found", searchTabs.length, "search tabs");
+
+        searchTabs.forEach((tab, index) => {
+          const searchType = tab.getAttribute("data-search-type");
+          console.log(`🔗 Setting up tab ${index + 1}: ${searchType}`);
+
+          tab.addEventListener("click", (e) => {
+            e.preventDefault();
+            console.log(`🖱️ Tab clicked: ${searchType}`);
+
+            searchTabs.forEach((t) => t.classList.remove("active"));
+            tab.classList.add("active");
+            showSearchForm(searchType);
+
+            // Update debug info
+            document.getElementById("debugCurrentTab").textContent = searchType;
+          });
+        });
+
+        initializeSearchFileUpload();
+        initializeDeleteConfirmation();
+        showSearchForm("tags-counts");
+
+        console.log("✅ Search initialization complete");
+      }
+
+      function showSearchForm(searchType) {
+        console.log(`📄 Showing search form: ${searchType}`);
+
+        document.querySelectorAll(".search-form").forEach((form) => {
+          form.style.display = "none";
+        });
+
+        const selectedForm = document.getElementById(`${searchType}-form`);
+        if (selectedForm) {
+          selectedForm.style.display = "block";
+          console.log(`✅ Form ${searchType} is now visible`);
+        } else {
+          console.error(`❌ ERROR: Form ${searchType} not found!`);
+        }
+
+        hideSearchResults();
+        clearSelection();
+      }
+
+      function addTagCountPair() {
+        const container = document.getElementById("tagCountPairs");
+        const pairDiv = document.createElement("div");
+        pairDiv.className = "tag-count-pair";
+        pairDiv.innerHTML = `
+          <select class="tag-select">
+            <option value="">Select bird species</option>
+            <option value="crow">Crow</option>
+            <option value="pigeon">Pigeon</option>
+            <option value="sparrow">Sparrow</option>
+            <option value="robin">Robin</option>
+          </select>
+          <input type="number" class="count-input" placeholder="Count" min="1">
+          <button class="btn-remove-tag" onclick="this.parentElement.remove()">× Remove</button>
+        `;
+        container.appendChild(pairDiv);
+      }
+
+      function resetTagsCountsForm() {
+        const container = document.getElementById("tagCountPairs");
+        container.innerHTML = `
+          <div class="tag-count-pair">
+            <select class="tag-select">
+              <option value="">Select bird species</option>
+              <option value="crow">Crow</option>
+              <option value="pigeon">Pigeon</option>
+              <option value="sparrow">Sparrow</option>
+              <option value="robin">Robin</option>
+            </select>
+            <input type="number" class="count-input" placeholder="Count" min="1">
+            <button class="btn-remove-tag" onclick="this.parentElement.remove()">× Remove</button>
+          </div>
+        `;
+        hideSearchResults();
+      }
+
+      function clearTagsForm() {
+        document.getElementById("speciesSelect").selectedIndex = -1;
+        hideSearchResults();
+      }
+
+      function clearThumbnailForm() {
+        document.getElementById("thumbnailUrl").value = "";
+        hideSearchResults();
+      }
+
+      function clearFileUploadForm() {
+        document.getElementById("searchFileInput").value = "";
+        document.getElementById("searchByFileBtn").disabled = true;
+        searchUploadedFile = null;
+        hideSearchResults();
+      }
+
+      function searchByTagsAndCounts() {
+        alert("🔍 Search by Tags & Counts - Will connect to backend APIs");
+      }
+
+      function searchByTags() {
+        alert("🔍 Search by Tags - Will connect to backend APIs");
+      }
+
+      function searchByThumbnailUrl() {
+        alert("🔍 Search by Thumbnail URL - Will connect to backend APIs");
+      }
+
+      function searchByFileUpload() {
+        alert("🔍 Search by File Upload - Will connect to backend APIs");
+      }
+
+      function hideSearchResults() {
+        const section = document.getElementById("searchResultsSection");
+        if (section) section.style.display = "none";
+      }
+
+      function clearSelection() {
+        selectedFiles = [];
+      }
+
+      function initializeSearchFileUpload() {
+        const fileInput = document.getElementById("searchFileInput");
+        if (fileInput) {
+          fileInput.addEventListener("change", (e) => {
+            const file = e.target.files[0];
+            if (file) {
+              searchUploadedFile = file;
+              document.getElementById("searchByFileBtn").disabled = false;
+            }
+          });
+        }
+      }
+
+      function initializeDeleteConfirmation() {
+        // Implementation for delete confirmation
+      }
+
+      function showAddTagsModal() {
+        alert("Add Tags modal - Will be implemented");
+      }
+
+      function showRemoveTagsModal() {
+        alert("Remove Tags modal - Will be implemented");
+      }
+
+      function showDeleteFilesModal() {
+        alert("Delete Files modal - Will be implemented");
+      }
+
+      function showSignOutModal() {
+        const modal = document.getElementById("signOutModal");
+        if (modal) modal.classList.add("active");
+      }
+
+      function hideSignOutModal() {
+        const modal = document.getElementById("signOutModal");
+        if (modal) modal.classList.remove("active");
+      }
+
+      function confirmSignOut() {
+        hideSignOutModal();
+        // Clear session and redirect
+        sessionStorage.clear();
+        window.location.href = "../index.html";
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        console.log("🌟 PAGE LOADED - Starting initialization");
+        initializeSearch();
+      });
+    </script>
   </body>
 </html>
