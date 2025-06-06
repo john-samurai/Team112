@@ -229,7 +229,7 @@ async function searchByFileUpload() {
     // Analyze the uploaded file to get tags
     const fileAnalysis = await analyzeUploadedFile(searchUploadedFile);
 
-    if (!fileAnalysis.tags || fileAnalysis.tags.length === 0) {
+    if (!fileAnalysis.tags || Object.keys(fileAnalysis.tags).length === 0) {
       showNotification("No bird species detected in the uploaded file", "info");
       hideSearchResults();
       return;
@@ -257,6 +257,9 @@ function initializeSearchFileUpload() {
   const fileInput = document.getElementById("searchFileInput");
 
   if (uploadArea && fileInput) {
+    // Click to upload
+    uploadArea.addEventListener("click", () => fileInput.click());
+
     // Drag and drop
     uploadArea.addEventListener("dragover", (e) => {
       e.preventDefault();
@@ -910,6 +913,55 @@ function showNotification(message, type = "info") {
 
 function getAuthenticationToken() {
   return sessionStorage.getItem("idToken") || "";
+}
+
+// FIXED SIGN OUT FUNCTIONALITY
+function showSignOutModal() {
+  const modal = document.getElementById("signOutModal");
+  if (modal) {
+    modal.classList.add("active");
+  }
+}
+
+function hideSignOutModal() {
+  const modal = document.getElementById("signOutModal");
+  if (modal) {
+    modal.classList.remove("active");
+  }
+}
+
+function confirmSignOut() {
+  hideSignOutModal();
+
+  try {
+    // Initialize Cognito User Pool if available
+    if (typeof AmazonCognitoIdentity !== "undefined") {
+      const userPool = new AmazonCognitoIdentity.CognitoUserPool({
+        UserPoolId: "ap-southeast-2_rXnAUdmtr",
+        ClientId: "77so3j6u54v3qk4qttle2k8tsk",
+      });
+
+      const cognitoUser = userPool.getCurrentUser();
+      if (cognitoUser) {
+        cognitoUser.signOut();
+      }
+    }
+  } catch (error) {
+    console.log(
+      "Cognito signout error (this is normal if user pool not initialized):",
+      error
+    );
+  }
+
+  // Clear all session storage
+  sessionStorage.removeItem("accessToken");
+  sessionStorage.removeItem("idToken");
+  sessionStorage.removeItem("isAuthenticated");
+  sessionStorage.removeItem("currentUser");
+  sessionStorage.clear();
+
+  // Redirect to home page
+  window.location.href = "../index.html";
 }
 
 // Initialize search functionality on page load

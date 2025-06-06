@@ -9,107 +9,6 @@
     <!-- Cognito Authentication -->
     <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1485.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.12/dist/amazon-cognito-identity.min.js"></script>
-
-    <style>
-      /* FORCE SUB-NAV TO BE VISIBLE */
-      .force-visible-subnav {
-        position: fixed !important;
-        top: 70px !important; /* Below the main navbar */
-        left: 0 !important;
-        right: 0 !important;
-        background: #ffffff !important;
-        border: 3px solid #2563eb !important; /* Blue border to make it obvious */
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
-        z-index: 1000 !important;
-        padding: 15px 0 !important;
-        display: block !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        height: auto !important;
-        width: 100% !important;
-      }
-
-      .force-visible-container {
-        max-width: 1200px !important;
-        margin: 0 auto !important;
-        padding: 0 2rem !important;
-        display: block !important;
-      }
-
-      .force-visible-links {
-        display: flex !important;
-        gap: 1rem !important;
-        flex-wrap: wrap !important;
-        justify-content: center !important;
-        align-items: center !important;
-      }
-
-      .force-visible-links a {
-        display: inline-block !important;
-        background: #f3f4f6 !important;
-        color: #374151 !important;
-        text-decoration: none !important;
-        font-weight: 500 !important;
-        padding: 12px 20px !important;
-        border-radius: 8px !important;
-        border: 2px solid #e5e7eb !important;
-        transition: all 0.2s ease !important;
-        font-size: 14px !important;
-        white-space: nowrap !important;
-        cursor: pointer !important;
-        min-height: 40px !important;
-        line-height: 1.2 !important;
-      }
-
-      .force-visible-links a:hover {
-        background: #e5e7eb !important;
-        border-color: #2563eb !important;
-        color: #1f2937 !important;
-      }
-
-      .force-visible-links a.active {
-        background: #2563eb !important;
-        color: #ffffff !important;
-        border-color: #1d4ed8 !important;
-        font-weight: 600 !important;
-      }
-
-      /* Adjust main content to account for fixed subnav */
-      .main-layout {
-        padding-top: 140px !important; /* More space for fixed subnav */
-        min-height: 100vh !important;
-      }
-
-      /* Make sure the page title is visible */
-      .page-title {
-        background: #fbbf24 !important;
-        color: #000 !important;
-        padding: 1rem !important;
-        margin: 1rem 0 !important;
-        border-radius: 8px !important;
-        text-align: center !important;
-      }
-
-      /* Make search forms more visible */
-      .search-form {
-        background: #ffffff !important;
-        border: 2px solid #059669 !important;
-        padding: 2rem !important;
-        border-radius: 1rem !important;
-        margin-bottom: 2rem !important;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1) !important;
-      }
-
-      .search-form-title {
-        background: #059669 !important;
-        color: #ffffff !important;
-        padding: 1rem !important;
-        margin: -2rem -2rem 1rem -2rem !important;
-        border-radius: 1rem 1rem 0 0 !important;
-        font-size: 1.5rem !important;
-        font-weight: 600 !important;
-      }
-    </style>
   </head>
   <body>
     <nav class="navbar">
@@ -124,10 +23,10 @@
       </div>
     </nav>
 
-    <!-- FORCED VISIBLE SUB-NAVIGATION -->
-    <div class="force-visible-subnav">
-      <div class="force-visible-container">
-        <div class="force-visible-links">
+    <!-- Sub-navigation for Search -->
+    <div class="sub-nav">
+      <div class="sub-nav-container">
+        <div class="sub-nav-links">
           <a href="#" data-search-type="tags-counts" class="active"
             >Images/Videos Search by Tags & Counts</a
           >
@@ -142,13 +41,11 @@
 
     <div class="main-layout">
       <div class="container">
-        <h1 class="page-title">
-          🔍 Search & Management - SUB-NAV SHOULD BE VISIBLE ABOVE 🔍
-        </h1>
+        <h1 class="page-title">Search & Management</h1>
 
         <!-- Images/Videos Search by Tags & Counts -->
         <div class="search-form" id="tags-counts-form">
-          <h2 class="search-form-title">🏷️ Search by Tags & Counts</h2>
+          <h2 class="search-form-title">Search by Tags & Counts</h2>
           <p class="search-form-description">
             Find images and videos that contain specific bird species with
             minimum counts.
@@ -156,14 +53,7 @@
 
           <div class="tag-count-pairs" id="tagCountPairs">
             <div class="tag-count-pair">
-              <select
-                class="tag-select"
-                style="
-                  padding: 0.75rem;
-                  border: 2px solid #2563eb;
-                  border-radius: 0.5rem;
-                  font-size: 1rem;
-                ">
+              <select class="tag-select">
                 <option value="">Select bird species</option>
                 <option value="crow">Crow</option>
                 <option value="pigeon">Pigeon</option>
@@ -174,73 +64,23 @@
                 type="number"
                 class="count-input"
                 placeholder="Count"
-                min="1"
-                style="
-                  padding: 0.75rem;
-                  border: 2px solid #2563eb;
-                  border-radius: 0.5rem;
-                  font-size: 1rem;
-                  width: 100px;
-                " />
+                min="1" />
               <button
                 class="btn-remove-tag"
-                onclick="this.parentElement.remove()"
-                style="
-                  background: #ef4444;
-                  color: white;
-                  border: none;
-                  padding: 0.75rem 1rem;
-                  border-radius: 0.5rem;
-                  cursor: pointer;
-                ">
+                onclick="this.parentElement.remove()">
                 × Remove
               </button>
             </div>
           </div>
 
-          <div
-            class="search-form-actions"
-            style="margin-top: 1.5rem; display: flex; gap: 1rem">
-            <button
-              class="btn-add-tag"
-              onclick="addTagCountPair()"
-              style="
-                background: #2563eb;
-                color: white;
-                border: none;
-                padding: 0.75rem 1.5rem;
-                border-radius: 0.5rem;
-                cursor: pointer;
-                font-weight: 500;
-              ">
+          <div class="search-form-actions">
+            <button class="btn-add-tag" onclick="addTagCountPair()">
               + Add Tag
             </button>
-            <button
-              class="btn-submit"
-              onclick="searchByTagsAndCounts()"
-              style="
-                background: #059669;
-                color: white;
-                border: none;
-                padding: 0.75rem 1.5rem;
-                border-radius: 0.5rem;
-                cursor: pointer;
-                font-weight: 500;
-              ">
+            <button class="btn-submit" onclick="searchByTagsAndCounts()">
               Search
             </button>
-            <button
-              class="btn-secondary"
-              onclick="resetTagsCountsForm()"
-              style="
-                background: #6b7280;
-                color: white;
-                border: none;
-                padding: 0.75rem 1.5rem;
-                border-radius: 0.5rem;
-                cursor: pointer;
-                font-weight: 500;
-              ">
+            <button class="btn-secondary" onclick="resetTagsCountsForm()">
               Reset
             </button>
           </div>
@@ -248,66 +88,29 @@
 
         <!-- Search by Tags -->
         <div class="search-form" id="tags-form" style="display: none">
-          <h2 class="search-form-title">🔖 Search by Tags</h2>
+          <h2 class="search-form-title">Search by Tags</h2>
           <p class="search-form-description">
             Find all files containing specific bird species (any count).
           </p>
 
           <div class="species-selection">
-            <label
-              for="speciesSelect"
-              style="display: block; font-weight: 500; margin-bottom: 0.5rem"
+            <label for="speciesSelect" class="form-label"
               >Select bird species:</label
             >
-            <select
-              id="speciesSelect"
-              multiple
-              style="
-                width: 100%;
-                padding: 0.75rem;
-                border: 2px solid #2563eb;
-                border-radius: 0.5rem;
-                min-height: 120px;
-              ">
+            <select id="speciesSelect" class="species-select" multiple>
               <option value="crow">Crow</option>
               <option value="pigeon">Pigeon</option>
               <option value="sparrow">Sparrow</option>
               <option value="robin">Robin</option>
             </select>
-            <small style="color: #6b7280; font-size: 0.875rem"
+            <small class="form-help"
               >Hold Ctrl/Cmd to select multiple species</small
             >
           </div>
 
-          <div
-            class="search-form-actions"
-            style="margin-top: 1.5rem; display: flex; gap: 1rem">
-            <button
-              class="btn-submit"
-              onclick="searchByTags()"
-              style="
-                background: #059669;
-                color: white;
-                border: none;
-                padding: 0.75rem 1.5rem;
-                border-radius: 0.5rem;
-                cursor: pointer;
-                font-weight: 500;
-              ">
-              Search
-            </button>
-            <button
-              class="btn-secondary"
-              onclick="clearTagsForm()"
-              style="
-                background: #6b7280;
-                color: white;
-                border: none;
-                padding: 0.75rem 1.5rem;
-                border-radius: 0.5rem;
-                cursor: pointer;
-                font-weight: 500;
-              ">
+          <div class="search-form-actions">
+            <button class="btn-submit" onclick="searchByTags()">Search</button>
+            <button class="btn-secondary" onclick="clearTagsForm()">
               Clear
             </button>
           </div>
@@ -315,62 +118,30 @@
 
         <!-- Search by Thumbnail URL -->
         <div class="search-form" id="thumbnail-url-form" style="display: none">
-          <h2 class="search-form-title">🔗 Search by Thumbnail URL</h2>
+          <h2 class="search-form-title">Search by Thumbnail URL</h2>
           <p class="search-form-description">
             Enter an S3 thumbnail URL to get the corresponding full-size image.
           </p>
 
           <div class="url-input-section">
-            <label
-              for="thumbnailUrl"
-              style="display: block; font-weight: 500; margin-bottom: 0.5rem"
+            <label for="thumbnailUrl" class="form-label"
               >S3 Thumbnail URL:</label
             >
             <input
               type="url"
               id="thumbnailUrl"
-              placeholder="https://xxx.s3.amazonaws.com/bird1-thumb.png"
-              style="
-                width: 100%;
-                padding: 0.75rem;
-                border: 2px solid #2563eb;
-                border-radius: 0.5rem;
-                font-size: 1rem;
-              " />
-            <small style="color: #6b7280; font-size: 0.875rem"
+              class="url-input"
+              placeholder="https://xxx.s3.amazonaws.com/bird1-thumb.png" />
+            <small class="form-help"
               >Example: https://xxx.s3.amazonaws.com/bird1-thumb.png</small
             >
           </div>
 
-          <div
-            class="search-form-actions"
-            style="margin-top: 1.5rem; display: flex; gap: 1rem">
-            <button
-              class="btn-submit"
-              onclick="searchByThumbnailUrl()"
-              style="
-                background: #059669;
-                color: white;
-                border: none;
-                padding: 0.75rem 1.5rem;
-                border-radius: 0.5rem;
-                cursor: pointer;
-                font-weight: 500;
-              ">
+          <div class="search-form-actions">
+            <button class="btn-submit" onclick="searchByThumbnailUrl()">
               Search
             </button>
-            <button
-              class="btn-secondary"
-              onclick="clearThumbnailForm()"
-              style="
-                background: #6b7280;
-                color: white;
-                border: none;
-                padding: 0.75rem 1.5rem;
-                border-radius: 0.5rem;
-                cursor: pointer;
-                font-weight: 500;
-              ">
+            <button class="btn-secondary" onclick="clearThumbnailForm()">
               Clear
             </button>
           </div>
@@ -378,78 +149,236 @@
 
         <!-- Search by File Upload -->
         <div class="search-form" id="file-upload-form" style="display: none">
-          <h2 class="search-form-title">📁 Search by File Upload</h2>
+          <h2 class="search-form-title">Search by File Upload</h2>
           <p class="search-form-description">
             Upload a file to find similar files based on detected bird species.
           </p>
 
-          <div
-            style="
-              background: #f3f4f6;
-              border: 2px dashed #2563eb;
-              border-radius: 1rem;
-              padding: 2rem;
-              text-align: center;
-              margin-bottom: 1.5rem;
-            ">
-            <div style="font-size: 3rem; margin-bottom: 1rem">📁</div>
-            <p style="margin-bottom: 0.5rem">Drag & drop file here or</p>
-            <button
-              onclick="document.getElementById('searchFileInput').click()"
-              style="
-                background: #2563eb;
-                color: white;
-                border: none;
-                padding: 0.75rem 1.5rem;
-                border-radius: 0.5rem;
-                cursor: pointer;
-                font-weight: 500;
-                margin: 0.5rem 0;
-              ">
-              Choose File
-            </button>
-            <p style="color: #6b7280; font-size: 0.875rem; margin-top: 0.5rem">
+          <div class="search-upload-area" id="searchUploadArea">
+            <div class="upload-icon">📁</div>
+            <p class="upload-text">Drag & drop file here or click to select</p>
+            <p class="upload-subtext">
               ⚠️ Note: File will not be stored - used for tag matching only
             </p>
             <input
               type="file"
               id="searchFileInput"
-              style="display: none"
+              class="file-input"
               accept=".jpg,.jpeg,.png,.wav,.mp3,.mp4" />
           </div>
 
-          <div
-            class="search-form-actions"
-            style="margin-top: 1.5rem; display: flex; gap: 1rem">
+          <div class="search-form-actions">
             <button
+              class="btn-submit"
               onclick="searchByFileUpload()"
               id="searchByFileBtn"
-              disabled
-              style="
-                background: #6b7280;
-                color: white;
-                border: none;
-                padding: 0.75rem 1.5rem;
-                border-radius: 0.5rem;
-                cursor: not-allowed;
-                font-weight: 500;
-              ">
+              disabled>
               Search
             </button>
-            <button
-              onclick="clearFileUploadForm()"
-              style="
-                background: #6b7280;
-                color: white;
-                border: none;
-                padding: 0.75rem 1.5rem;
-                border-radius: 0.5rem;
-                cursor: pointer;
-                font-weight: 500;
-              ">
+            <button class="btn-secondary" onclick="clearFileUploadForm()">
               Clear
             </button>
           </div>
+        </div>
+
+        <!-- Search Results Section -->
+        <div
+          class="search-results-section"
+          id="searchResultsSection"
+          style="display: none">
+          <div class="results-header">
+            <h3 class="results-title" id="resultsTitle">Search Results</h3>
+            <p class="results-count" id="resultsCount">Found 0 files</p>
+          </div>
+
+          <div class="results-grid" id="searchResults">
+            <!-- Results will be populated here -->
+          </div>
+        </div>
+
+        <!-- Floating Action Bar -->
+        <div class="floating-action-bar hidden" id="floatingActionBar">
+          <span id="selectedCount">0 files selected</span>
+          <button class="btn-action" onclick="showAddTagsModal()">
+            Add Tags
+          </button>
+          <button class="btn-action" onclick="showRemoveTagsModal()">
+            Remove Tags
+          </button>
+          <button
+            class="btn-action btn-danger"
+            onclick="showDeleteFilesModal()">
+            Delete Files
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Tags Modal -->
+    <div class="modal" id="addTagsModal">
+      <div class="modal-content modal-large">
+        <h3 class="modal-title">Add Tags to Selected Files</h3>
+        <hr class="modal-divider" />
+        <p class="modal-info">
+          Selected Files: <span id="addTagsFileCount">0</span> files
+        </p>
+
+        <div class="modal-section">
+          <h4>Add New Tags:</h4>
+          <div class="tag-count-pairs" id="addTagsPairs">
+            <div class="tag-count-pair">
+              <select class="tag-select">
+                <option value="">Select bird species</option>
+                <option value="crow">Crow</option>
+                <option value="pigeon">Pigeon</option>
+                <option value="sparrow">Sparrow</option>
+                <option value="robin">Robin</option>
+              </select>
+              <input
+                type="number"
+                class="count-input"
+                placeholder="Count"
+                min="1" />
+              <button
+                class="btn-remove-tag"
+                onclick="this.parentElement.remove()">
+                × Remove
+              </button>
+            </div>
+          </div>
+          <button
+            class="btn-add-tag"
+            onclick="addTagPairToModal('addTagsPairs')">
+            + Add Another Tag
+          </button>
+        </div>
+
+        <div class="modal-preview">
+          <strong>Preview:</strong> <span id="addTagsPreview">{}</span>
+        </div>
+
+        <hr class="modal-divider" />
+        <div class="modal-buttons">
+          <button class="btn-secondary" onclick="hideAddTagsModal()">
+            Cancel
+          </button>
+          <button class="btn-submit" onclick="applyAddTags()">
+            Apply Tags
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Remove Tags Modal -->
+    <div class="modal" id="removeTagsModal">
+      <div class="modal-content modal-large">
+        <h3 class="modal-title">Remove Tags from Selected Files</h3>
+        <hr class="modal-divider" />
+        <p class="modal-info">
+          Selected Files: <span id="removeTagsFileCount">0</span> files
+        </p>
+
+        <div class="modal-section">
+          <h4>Current Tags in Selected Files:</h4>
+          <div class="current-tags" id="currentTagsDisplay">
+            <!-- Will be populated dynamically -->
+          </div>
+        </div>
+
+        <div class="modal-section">
+          <h4>Or specify tags to remove:</h4>
+          <div class="tag-count-pairs" id="removeTagsPairs">
+            <div class="tag-count-pair">
+              <select class="tag-select">
+                <option value="">Select bird species</option>
+                <option value="crow">Crow</option>
+                <option value="pigeon">Pigeon</option>
+                <option value="sparrow">Sparrow</option>
+                <option value="robin">Robin</option>
+              </select>
+              <input
+                type="number"
+                class="count-input"
+                placeholder="Count"
+                min="1" />
+              <button
+                class="btn-remove-tag"
+                onclick="this.parentElement.remove()">
+                × Remove
+              </button>
+            </div>
+          </div>
+          <button
+            class="btn-add-tag"
+            onclick="addTagPairToModal('removeTagsPairs')">
+            + Add Tag to Remove
+          </button>
+        </div>
+
+        <div class="modal-preview">
+          <strong>Preview:</strong> <span id="removeTagsPreview">{}</span>
+        </div>
+
+        <hr class="modal-divider" />
+        <div class="modal-buttons">
+          <button class="btn-secondary" onclick="hideRemoveTagsModal()">
+            Cancel
+          </button>
+          <button class="btn-submit" onclick="applyRemoveTags()">
+            Remove Tags
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete Files Modal -->
+    <div class="modal" id="deleteFilesModal">
+      <div class="modal-content modal-large">
+        <h3 class="modal-title">Delete Files</h3>
+        <hr class="modal-divider" />
+        <div class="warning-section">
+          <p class="warning-text">⚠️ Warning: This action cannot be undone</p>
+        </div>
+
+        <div class="modal-section">
+          <p>
+            You are about to delete <span id="deleteFileCount">0</span> files:
+          </p>
+          <div class="files-to-delete" id="filesToDeleteList">
+            <!-- Will be populated dynamically -->
+          </div>
+        </div>
+
+        <div class="modal-section">
+          <p><strong>This will:</strong></p>
+          <ul class="action-list">
+            <li>✓ Remove files from S3 storage</li>
+            <li>✓ Remove thumbnails from S3</li>
+            <li>✓ Remove all database entries</li>
+          </ul>
+        </div>
+
+        <div class="confirmation-section">
+          <label for="deleteConfirmation">Type "DELETE" to confirm:</label>
+          <input
+            type="text"
+            id="deleteConfirmation"
+            class="confirmation-input"
+            placeholder="DELETE" />
+        </div>
+
+        <hr class="modal-divider" />
+        <div class="modal-buttons">
+          <button class="btn-secondary" onclick="hideDeleteFilesModal()">
+            Cancel
+          </button>
+          <button
+            class="btn-danger"
+            onclick="confirmDeleteFiles()"
+            id="confirmDeleteBtn"
+            disabled>
+            Delete Files
+          </button>
         </div>
       </div>
     </div>
@@ -459,198 +388,13 @@
       <div class="modal-content">
         <h3 class="modal-title">Are you sure you want to sign out?</h3>
         <div class="modal-buttons">
-          <button class="btn-submit" onclick="signOut()">Yes</button>
+          <button class="btn-submit" onclick="confirmSignOut()">Yes</button>
           <button class="btn-secondary" onclick="hideSignOutModal()">No</button>
         </div>
       </div>
     </div>
 
     <script src="../shared/js/common.js"></script>
-    <script>
-      // Enhanced JavaScript with better debugging
-      let selectedFiles = [];
-      let currentSearchResults = [];
-      let searchUploadedFile = null;
-
-      function initializeSearch() {
-        console.log("🚀 INITIALIZING SEARCH FUNCTIONALITY");
-
-        const searchTabs = document.querySelectorAll(".force-visible-links a");
-        console.log("📋 Found", searchTabs.length, "search tabs");
-
-        if (searchTabs.length === 0) {
-          console.error("❌ ERROR: No search tabs found!");
-          return;
-        }
-
-        searchTabs.forEach((tab, index) => {
-          const searchType = tab.getAttribute("data-search-type");
-          console.log(`🔗 Setting up tab ${index + 1}: ${searchType}`);
-
-          tab.addEventListener("click", (e) => {
-            e.preventDefault();
-            console.log(`🖱️ Tab clicked: ${searchType}`);
-
-            // Remove active class from all tabs
-            searchTabs.forEach((t) => t.classList.remove("active"));
-            // Add active class to clicked tab
-            tab.classList.add("active");
-
-            // Show corresponding search form
-            showSearchForm(searchType);
-          });
-        });
-
-        // Initialize file upload for search
-        initializeSearchFileUpload();
-
-        // Show the first form by default
-        showSearchForm("tags-counts");
-        console.log("✅ Search initialization complete");
-      }
-
-      function showSearchForm(searchType) {
-        console.log(`📄 Showing search form: ${searchType}`);
-
-        // Hide all search forms
-        document.querySelectorAll(".search-form").forEach((form) => {
-          form.style.display = "none";
-        });
-
-        // Show selected form
-        const selectedForm = document.getElementById(`${searchType}-form`);
-        if (selectedForm) {
-          selectedForm.style.display = "block";
-          console.log(`✅ Form ${searchType} is now visible`);
-        } else {
-          console.error(`❌ ERROR: Form ${searchType} not found!`);
-        }
-      }
-
-      function addTagCountPair() {
-        console.log("➕ Adding new tag-count pair");
-        const container = document.getElementById("tagCountPairs");
-        const pairDiv = document.createElement("div");
-        pairDiv.className = "tag-count-pair";
-        pairDiv.innerHTML = `
-          <select class="tag-select" style="padding: 0.75rem; border: 2px solid #2563eb; border-radius: 0.5rem; font-size: 1rem; margin-right: 0.5rem;">
-            <option value="">Select bird species</option>
-            <option value="crow">Crow</option>
-            <option value="pigeon">Pigeon</option>
-            <option value="sparrow">Sparrow</option>
-            <option value="robin">Robin</option>
-          </select>
-          <input type="number" class="count-input" placeholder="Count" min="1" style="padding: 0.75rem; border: 2px solid #2563eb; border-radius: 0.5rem; font-size: 1rem; width: 100px; margin-right: 0.5rem;">
-          <button class="btn-remove-tag" onclick="this.parentElement.remove()" style="background: #ef4444; color: white; border: none; padding: 0.75rem 1rem; border-radius: 0.5rem; cursor: pointer;">× Remove</button>
-        `;
-        pairDiv.style.display = "flex";
-        pairDiv.style.alignItems = "center";
-        pairDiv.style.gap = "0.5rem";
-        pairDiv.style.marginBottom = "1rem";
-        container.appendChild(pairDiv);
-      }
-
-      function resetTagsCountsForm() {
-        console.log("🔄 Resetting tags & counts form");
-        const container = document.getElementById("tagCountPairs");
-        container.innerHTML = `
-          <div class="tag-count-pair" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
-            <select class="tag-select" style="padding: 0.75rem; border: 2px solid #2563eb; border-radius: 0.5rem; font-size: 1rem;">
-              <option value="">Select bird species</option>
-              <option value="crow">Crow</option>
-              <option value="pigeon">Pigeon</option>
-              <option value="sparrow">Sparrow</option>
-              <option value="robin">Robin</option>
-            </select>
-            <input type="number" class="count-input" placeholder="Count" min="1" style="padding: 0.75rem; border: 2px solid #2563eb; border-radius: 0.5rem; font-size: 1rem; width: 100px;">
-            <button class="btn-remove-tag" onclick="this.parentElement.remove()" style="background: #ef4444; color: white; border: none; padding: 0.75rem 1rem; border-radius: 0.5rem; cursor: pointer;">× Remove</button>
-          </div>
-        `;
-      }
-
-      function clearTagsForm() {
-        console.log("🗑️ Clearing tags form");
-        document.getElementById("speciesSelect").selectedIndex = -1;
-      }
-
-      function clearThumbnailForm() {
-        console.log("🗑️ Clearing thumbnail form");
-        document.getElementById("thumbnailUrl").value = "";
-      }
-
-      function clearFileUploadForm() {
-        console.log("🗑️ Clearing file upload form");
-        document.getElementById("searchFileInput").value = "";
-        document.getElementById("searchByFileBtn").disabled = true;
-        document.getElementById("searchByFileBtn").style.background = "#6b7280";
-        document.getElementById("searchByFileBtn").style.cursor = "not-allowed";
-        searchUploadedFile = null;
-      }
-
-      function searchByTagsAndCounts() {
-        alert(
-          "🔍 Search by Tags & Counts - This will connect to your backend API"
-        );
-      }
-
-      function searchByTags() {
-        alert("🔍 Search by Tags - This will connect to your backend API");
-      }
-
-      function searchByThumbnailUrl() {
-        alert(
-          "🔍 Search by Thumbnail URL - This will connect to your backend API"
-        );
-      }
-
-      function searchByFileUpload() {
-        alert(
-          "🔍 Search by File Upload - This will connect to your backend API"
-        );
-      }
-
-      function initializeSearchFileUpload() {
-        const fileInput = document.getElementById("searchFileInput");
-        if (fileInput) {
-          fileInput.addEventListener("change", (e) => {
-            const file = e.target.files[0];
-            if (file) {
-              console.log("📁 File selected for search:", file.name);
-              searchUploadedFile = file;
-              const btn = document.getElementById("searchByFileBtn");
-              btn.disabled = false;
-              btn.style.background = "#059669";
-              btn.style.cursor = "pointer";
-            }
-          });
-        }
-      }
-
-      function showSignOutModal() {
-        const modal = document.getElementById("signOutModal");
-        if (modal) {
-          modal.classList.add("active");
-        }
-      }
-
-      function hideSignOutModal() {
-        const modal = document.getElementById("signOutModal");
-        if (modal) {
-          modal.classList.remove("active");
-        }
-      }
-
-      function signOut() {
-        console.log("👋 Signing out...");
-        hideSignOutModal();
-        // Add your sign out logic here
-      }
-
-      // Initialize on page load
-      document.addEventListener("DOMContentLoaded", () => {
-        console.log("🌟 PAGE LOADED - Starting initialization");
-        initializeSearch();
-      });
-    </script>
+    <script src="js/search.js"></script>
   </body>
 </html>
