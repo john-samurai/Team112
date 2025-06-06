@@ -23,13 +23,76 @@
       </div>
     </nav>
 
+    <!-- Sub-navigation for Settings -->
+    <div class="sub-nav">
+      <div class="sub-nav-container">
+        <div class="sub-nav-links">
+          <a href="#" data-settings-tab="notifications" class="active"
+            >Tag-based Notifications</a
+          >
+          <!-- Future settings tabs can be added here -->
+        </div>
+      </div>
+    </div>
+
     <div class="main-layout">
       <div class="container">
         <h1 class="page-title">Settings</h1>
-        <div class="placeholder">
-          <p class="placeholder-text">
-            This functionality will be implemented later.
-          </p>
+
+        <!-- Tag-based Notifications Section -->
+        <div class="settings-section" id="notifications-section">
+          <div class="settings-content">
+            <h2 class="settings-title">Notification Preferences</h2>
+            <p class="settings-description">
+              Get notified when new bird files are uploaded.
+            </p>
+
+            <div class="notification-content">
+              <h3 class="notification-subtitle">Bird Species Subscriptions:</h3>
+
+              <div class="notification-list">
+                <div class="notification-item">
+                  <input
+                    type="checkbox"
+                    id="crow"
+                    name="bird-species"
+                    value="crow" />
+                  <label for="crow">Crow</label>
+                </div>
+
+                <div class="notification-item">
+                  <input
+                    type="checkbox"
+                    id="pigeon"
+                    name="bird-species"
+                    value="pigeon" />
+                  <label for="pigeon">Pigeon</label>
+                </div>
+
+                <div class="notification-item">
+                  <input
+                    type="checkbox"
+                    id="sparrow"
+                    name="bird-species"
+                    value="sparrow" />
+                  <label for="sparrow">Sparrow</label>
+                </div>
+              </div>
+
+              <div class="settings-actions">
+                <button
+                  class="btn-submit"
+                  onclick="saveNotificationPreferences()">
+                  Save Preferences
+                </button>
+                <button
+                  class="btn-secondary"
+                  onclick="resetNotificationPreferences()">
+                  Reset to Default
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
