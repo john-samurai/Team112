@@ -51,7 +51,7 @@ function handleFiles(files) {
     "video/mp4",
     "video/mpeg",
     "video/quicktime",
-    "video/x-msvideo",
+    "video/x-msvideo", // AVI
   ];
   const maxSize = 8 * 1024 * 1024; // 8MB
 

@@ -1,42 +1,45 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sign In - Monash Bird Buddies</title>
-    <link rel="stylesheet" href="../shared/css/common.css">
-    <link rel="stylesheet" href="css/auth.css">
-</head>
-<body>
+    <link rel="stylesheet" href="../shared/css/common.css" />
+    <link rel="stylesheet" href="css/auth.css" />
+    <!-- Cognito Authentication -->
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1485.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.12/dist/amazon-cognito-identity.min.js"></script>
+  </head>
+  <body>
     <nav class="navbar">
-        <div class="nav-container">
-            <a href="../index.html" class="logo">MBB</a>
-        </div>
+      <div class="nav-container">
+        <a href="../index.html" class="logo">MBB</a>
+      </div>
     </nav>
 
     <div class="auth-container">
-        <form class="auth-form" onsubmit="signIn(event)">
-            <h2 class="auth-title">Sign In</h2>
-            
-            <div class="form-group">
-                <label for="email" class="form-label">Email</label>
-                <input type="email" id="email" class="form-input" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="password" class="form-label">Password</label>
-                <input type="password" id="password" class="form-input" required>
-            </div>
-            
-            <button type="submit" class="btn-submit">Sign In</button>
-            
-            <p class="auth-link">
-                New to BirdTag? <a href="signup.html">Sign up now</a>
-            </p>
-        </form>
+      <form class="auth-form" onsubmit="signIn(event)">
+        <h2 class="auth-title">Sign In</h2>
+
+        <div class="form-group">
+          <label for="email" class="form-label">Email</label>
+          <input type="email" id="email" class="form-input" required />
+        </div>
+
+        <div class="form-group">
+          <label for="password" class="form-label">Password</label>
+          <input type="password" id="password" class="form-input" required />
+        </div>
+
+        <button type="submit" class="btn-submit">Sign In</button>
+
+        <p class="auth-link">
+          New to BirdTag? <a href="signup.html">Sign up now</a>
+        </p>
+      </form>
     </div>
 
     <script src="../shared/js/common.js"></script>
     <script src="js/auth.js"></script>
-</body>
+  </body>
 </html>

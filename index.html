@@ -1,32 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Monash Bird Buddies</title>
-    <link rel="stylesheet" href="shared/css/common.css">
-</head>
-<body>
+    <link rel="stylesheet" href="shared/css/common.css" />
+    <!-- Cognito Authentication -->
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1485.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.12/dist/amazon-cognito-identity.min.js"></script>
+  </head>
+  <body>
     <nav class="navbar">
-        <div class="nav-container">
-            <a href="index.html" class="logo">MBB</a>
-            <div class="nav-links">
-                <a href="auth/signin.html" class="btn-signin">Sign in</a>
-            </div>
+      <div class="nav-container">
+        <a href="index.html" class="logo">MBB</a>
+        <div class="nav-links">
+          <a href="auth/signin.html" class="btn-signin">Sign in</a>
         </div>
+      </div>
     </nav>
 
     <main class="hero">
-        <div class="hero-content">
-            <h1 class="hero-title">Monash Bird Buddies</h1>
-            <p class="hero-text">
-                Discover birds from your media with our advanced AI-powered tagging application. 
-                Upload images, audio, and videos to automatically identify bird species and build your collection
-            </p>
-            <a href="auth/signin.html" class="btn-primary">Get Started</a>
-        </div>
+      <div class="hero-content">
+        <h1 class="hero-title">Monash Bird Buddies</h1>
+        <p class="hero-text">
+          Discover birds from your media with our advanced AI-powered tagging
+          application. Upload images, audio, and videos to automatically
+          identify bird species and build your collection
+        </p>
+        <a href="auth/signin.html" class="btn-primary">Get Started</a>
+      </div>
     </main>
 
     <script src="shared/js/common.js"></script>
-</body>
+  </body>
 </html>
