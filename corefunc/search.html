@@ -23,13 +23,367 @@
       </div>
     </nav>
 
+    <!-- Sub-navigation for Search -->
+    <div class="sub-nav">
+      <div class="sub-nav-container">
+        <div class="sub-nav-links">
+          <a href="#" data-search-type="tags-counts" class="active"
+            >Images/Videos Search by Tags & Counts</a
+          >
+          <a href="#" data-search-type="tags">Search by Tags</a>
+          <a href="#" data-search-type="thumbnail-url"
+            >Search by Thumbnail URL</a
+          >
+          <a href="#" data-search-type="file-upload">Search by File Upload</a>
+        </div>
+      </div>
+    </div>
+
     <div class="main-layout">
       <div class="container">
         <h1 class="page-title">Search & Management</h1>
-        <div class="placeholder">
-          <p class="placeholder-text">
-            This functionality will be implemented later.
+
+        <!-- Images/Videos Search by Tags & Counts -->
+        <div class="search-form" id="tags-counts-form">
+          <h2 class="search-form-title">Search by Tags & Counts</h2>
+          <p class="search-form-description">
+            Find images and videos that contain specific bird species with
+            minimum counts.
           </p>
+
+          <div class="tag-count-pairs" id="tagCountPairs">
+            <div class="tag-count-pair">
+              <select class="tag-select">
+                <option value="">Select bird species</option>
+                <option value="crow">Crow</option>
+                <option value="pigeon">Pigeon</option>
+                <option value="sparrow">Sparrow</option>
+                <option value="robin">Robin</option>
+              </select>
+              <input
+                type="number"
+                class="count-input"
+                placeholder="Count"
+                min="1" />
+              <button
+                class="btn-remove-tag"
+                onclick="this.parentElement.remove()">
+                × Remove
+              </button>
+            </div>
+          </div>
+
+          <div class="search-form-actions">
+            <button class="btn-add-tag" onclick="addTagCountPair()">
+              + Add Tag
+            </button>
+            <button class="btn-submit" onclick="searchByTagsAndCounts()">
+              Search
+            </button>
+            <button class="btn-secondary" onclick="resetTagsCountsForm()">
+              Reset
+            </button>
+          </div>
+        </div>
+
+        <!-- Search by Tags -->
+        <div class="search-form" id="tags-form" style="display: none">
+          <h2 class="search-form-title">Search by Tags</h2>
+          <p class="search-form-description">
+            Find all files containing specific bird species (any count).
+          </p>
+
+          <div class="species-selection">
+            <label for="speciesSelect" class="form-label"
+              >Select bird species:</label
+            >
+            <select id="speciesSelect" class="species-select" multiple>
+              <option value="crow">Crow</option>
+              <option value="pigeon">Pigeon</option>
+              <option value="sparrow">Sparrow</option>
+              <option value="robin">Robin</option>
+            </select>
+            <small class="form-help"
+              >Hold Ctrl/Cmd to select multiple species</small
+            >
+          </div>
+
+          <div class="search-form-actions">
+            <button class="btn-submit" onclick="searchByTags()">Search</button>
+            <button class="btn-secondary" onclick="clearTagsForm()">
+              Clear
+            </button>
+          </div>
+        </div>
+
+        <!-- Search by Thumbnail URL -->
+        <div class="search-form" id="thumbnail-url-form" style="display: none">
+          <h2 class="search-form-title">Search by Thumbnail URL</h2>
+          <p class="search-form-description">
+            Enter an S3 thumbnail URL to get the corresponding full-size image.
+          </p>
+
+          <div class="url-input-section">
+            <label for="thumbnailUrl" class="form-label"
+              >S3 Thumbnail URL:</label
+            >
+            <input
+              type="url"
+              id="thumbnailUrl"
+              class="url-input"
+              placeholder="https://xxx.s3.amazonaws.com/bird1-thumb.png" />
+            <small class="form-help"
+              >Example: https://xxx.s3.amazonaws.com/bird1-thumb.png</small
+            >
+          </div>
+
+          <div class="search-form-actions">
+            <button class="btn-submit" onclick="searchByThumbnailUrl()">
+              Search
+            </button>
+            <button class="btn-secondary" onclick="clearThumbnailForm()">
+              Clear
+            </button>
+          </div>
+        </div>
+
+        <!-- Search by File Upload -->
+        <div class="search-form" id="file-upload-form" style="display: none">
+          <h2 class="search-form-title">Search by File Upload</h2>
+          <p class="search-form-description">
+            Upload a file to find similar files based on detected bird species.
+          </p>
+
+          <div class="search-upload-area" id="searchUploadArea">
+            <div class="upload-icon">📁</div>
+            <p class="upload-text">Drag & drop file here or</p>
+            <button
+              class="btn-choose-file"
+              onclick="document.getElementById('searchFileInput').click()">
+              Choose File
+            </button>
+            <p class="upload-warning">
+              ⚠️ Note: File will not be stored - used for tag matching only
+            </p>
+            <input
+              type="file"
+              id="searchFileInput"
+              class="file-input"
+              accept=".jpg,.jpeg,.png,.wav,.mp3,.mp4" />
+          </div>
+
+          <div class="search-form-actions">
+            <button
+              class="btn-submit"
+              onclick="searchByFileUpload()"
+              id="searchByFileBtn"
+              disabled>
+              Search
+            </button>
+            <button class="btn-secondary" onclick="clearFileUploadForm()">
+              Clear
+            </button>
+          </div>
+        </div>
+
+        <!-- Search Results Section -->
+        <div
+          class="search-results-section"
+          id="searchResultsSection"
+          style="display: none">
+          <div class="results-header">
+            <h3 class="results-title" id="resultsTitle">Search Results</h3>
+            <p class="results-count" id="resultsCount">Found 0 files</p>
+          </div>
+
+          <div class="results-grid" id="searchResults">
+            <!-- Results will be populated here -->
+          </div>
+        </div>
+
+        <!-- Floating Action Bar -->
+        <div class="floating-action-bar hidden" id="floatingActionBar">
+          <span id="selectedCount">0 files selected</span>
+          <button class="btn-action" onclick="showAddTagsModal()">
+            Add Tags
+          </button>
+          <button class="btn-action" onclick="showRemoveTagsModal()">
+            Remove Tags
+          </button>
+          <button
+            class="btn-action btn-danger"
+            onclick="showDeleteFilesModal()">
+            Delete Files
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Tags Modal -->
+    <div class="modal" id="addTagsModal">
+      <div class="modal-content modal-large">
+        <h3 class="modal-title">Add Tags to Selected Files</h3>
+        <hr class="modal-divider" />
+        <p class="modal-info">
+          Selected Files: <span id="addTagsFileCount">0</span> files
+        </p>
+
+        <div class="modal-section">
+          <h4>Add New Tags:</h4>
+          <div class="tag-count-pairs" id="addTagsPairs">
+            <div class="tag-count-pair">
+              <select class="tag-select">
+                <option value="">Select bird species</option>
+                <option value="crow">Crow</option>
+                <option value="pigeon">Pigeon</option>
+                <option value="sparrow">Sparrow</option>
+                <option value="robin">Robin</option>
+              </select>
+              <input
+                type="number"
+                class="count-input"
+                placeholder="Count"
+                min="1" />
+              <button
+                class="btn-remove-tag"
+                onclick="this.parentElement.remove()">
+                × Remove
+              </button>
+            </div>
+          </div>
+          <button
+            class="btn-add-tag"
+            onclick="addTagPairToModal('addTagsPairs')">
+            + Add Another Tag
+          </button>
+        </div>
+
+        <div class="modal-preview">
+          <strong>Preview:</strong> <span id="addTagsPreview">{}</span>
+        </div>
+
+        <hr class="modal-divider" />
+        <div class="modal-buttons">
+          <button class="btn-secondary" onclick="hideAddTagsModal()">
+            Cancel
+          </button>
+          <button class="btn-submit" onclick="applyAddTags()">
+            Apply Tags
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Remove Tags Modal -->
+    <div class="modal" id="removeTagsModal">
+      <div class="modal-content modal-large">
+        <h3 class="modal-title">Remove Tags from Selected Files</h3>
+        <hr class="modal-divider" />
+        <p class="modal-info">
+          Selected Files: <span id="removeTagsFileCount">0</span> files
+        </p>
+
+        <div class="modal-section">
+          <h4>Current Tags in Selected Files:</h4>
+          <div class="current-tags" id="currentTagsDisplay">
+            <!-- Will be populated dynamically -->
+          </div>
+        </div>
+
+        <div class="modal-section">
+          <h4>Or specify tags to remove:</h4>
+          <div class="tag-count-pairs" id="removeTagsPairs">
+            <div class="tag-count-pair">
+              <select class="tag-select">
+                <option value="">Select bird species</option>
+                <option value="crow">Crow</option>
+                <option value="pigeon">Pigeon</option>
+                <option value="sparrow">Sparrow</option>
+                <option value="robin">Robin</option>
+              </select>
+              <input
+                type="number"
+                class="count-input"
+                placeholder="Count"
+                min="1" />
+              <button
+                class="btn-remove-tag"
+                onclick="this.parentElement.remove()">
+                × Remove
+              </button>
+            </div>
+          </div>
+          <button
+            class="btn-add-tag"
+            onclick="addTagPairToModal('removeTagsPairs')">
+            + Add Tag to Remove
+          </button>
+        </div>
+
+        <div class="modal-preview">
+          <strong>Preview:</strong> <span id="removeTagsPreview">{}</span>
+        </div>
+
+        <hr class="modal-divider" />
+        <div class="modal-buttons">
+          <button class="btn-secondary" onclick="hideRemoveTagsModal()">
+            Cancel
+          </button>
+          <button class="btn-submit" onclick="applyRemoveTags()">
+            Remove Tags
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete Files Modal -->
+    <div class="modal" id="deleteFilesModal">
+      <div class="modal-content modal-large">
+        <h3 class="modal-title">Delete Files</h3>
+        <hr class="modal-divider" />
+        <div class="warning-section">
+          <p class="warning-text">⚠️ Warning: This action cannot be undone</p>
+        </div>
+
+        <div class="modal-section">
+          <p>
+            You are about to delete <span id="deleteFileCount">0</span> files:
+          </p>
+          <div class="files-to-delete" id="filesToDeleteList">
+            <!-- Will be populated dynamically -->
+          </div>
+        </div>
+
+        <div class="modal-section">
+          <p><strong>This will:</strong></p>
+          <ul class="action-list">
+            <li>✓ Remove files from S3 storage</li>
+            <li>✓ Remove thumbnails from S3</li>
+            <li>✓ Remove all database entries</li>
+          </ul>
+        </div>
+
+        <div class="confirmation-section">
+          <label for="deleteConfirmation">Type "DELETE" to confirm:</label>
+          <input
+            type="text"
+            id="deleteConfirmation"
+            class="confirmation-input"
+            placeholder="DELETE" />
+        </div>
+
+        <hr class="modal-divider" />
+        <div class="modal-buttons">
+          <button class="btn-secondary" onclick="hideDeleteFilesModal()">
+            Cancel
+          </button>
+          <button
+            class="btn-danger"
+            onclick="confirmDeleteFiles()"
+            id="confirmDeleteBtn"
+            disabled>
+            Delete Files
+          </button>
         </div>
       </div>
     </div>
