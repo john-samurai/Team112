@@ -9,6 +9,59 @@
     <!-- Cognito Authentication -->
     <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1485.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.12/dist/amazon-cognito-identity.min.js"></script>
+
+    <!-- Inline styles to ensure sub-nav appears -->
+    <style>
+      .sub-nav {
+        background: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+        padding: 1rem 0;
+        margin: 0;
+        position: relative;
+        z-index: 100;
+      }
+
+      .sub-nav-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 2rem;
+      }
+
+      .sub-nav-links {
+        display: flex;
+        gap: 2rem;
+        flex-wrap: wrap;
+      }
+
+      .sub-nav-links a {
+        color: #6b7280;
+        text-decoration: none;
+        font-weight: 500;
+        padding: 0.5rem 0;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s;
+        white-space: nowrap;
+      }
+
+      .sub-nav-links a:hover,
+      .sub-nav-links a.active {
+        color: #2563eb;
+        border-bottom-color: #2563eb;
+      }
+
+      .main-layout {
+        padding-top: 5rem;
+        min-height: 100vh;
+      }
+
+      .search-form {
+        background: #f9fafb;
+        padding: 2rem;
+        border-radius: 1rem;
+        margin-bottom: 2rem;
+        border: 1px solid #e5e7eb;
+      }
+    </style>
   </head>
   <body>
     <nav class="navbar">
@@ -23,7 +76,7 @@
       </div>
     </nav>
 
-    <!-- Sub-navigation for Search -->
+    <!-- Sub-navigation for Search - This should be visible -->
     <div class="sub-nav">
       <div class="sub-nav-container">
         <div class="sub-nav-links">
