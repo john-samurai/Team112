@@ -10,41 +10,56 @@
     <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1485.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.12/dist/amazon-cognito-identity.min.js"></script>
 
-    <!-- FORCE SUB-NAV TO BE VISIBLE -->
+    <!-- FIX SUB-NAV POSITIONING -->
     <style>
-      /* Override any conflicting styles */
-      .force-subnav-visible {
-        position: relative !important;
+      /* Fix the main navbar to ensure proper spacing */
+      .navbar {
+        position: fixed !important;
         top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        z-index: 1000 !important;
+        height: 70px !important; /* Fixed height */
+        background: #ffffff !important;
+        border-bottom: 1px solid #e5e7eb !important;
+        padding: 1rem 0 !important;
+      }
+
+      /* Position sub-nav directly below main nav */
+      .sub-nav-fixed {
+        position: fixed !important;
+        top: 70px !important; /* Directly below main navbar */
         left: 0 !important;
         right: 0 !important;
         width: 100% !important;
         background: #f8fafc !important;
         border-bottom: 2px solid #e2e8f0 !important;
         padding: 1rem 0 !important;
-        margin: 0 !important;
         z-index: 999 !important;
         display: block !important;
         visibility: visible !important;
         opacity: 1 !important;
-        height: auto !important;
+        height: 60px !important; /* Fixed height for sub-nav */
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
       }
 
-      .force-subnav-container {
+      .sub-nav-fixed .sub-nav-container {
         max-width: 1200px !important;
         margin: 0 auto !important;
         padding: 0 2rem !important;
         display: block !important;
       }
 
-      .force-subnav-links {
+      .sub-nav-fixed .sub-nav-links {
         display: flex !important;
         gap: 1.5rem !important;
         flex-wrap: wrap !important;
         justify-content: flex-start !important;
+        align-items: center !important;
+        height: 100% !important;
       }
 
-      .force-subnav-links a {
+      .sub-nav-fixed .sub-nav-links a {
         display: inline-block !important;
         color: #64748b !important;
         text-decoration: none !important;
@@ -55,29 +70,31 @@
         white-space: nowrap !important;
         border-radius: 0.5rem 0.5rem 0 0 !important;
         background: transparent !important;
+        font-size: 0.9rem !important;
       }
 
-      .force-subnav-links a:hover,
-      .force-subnav-links a.active {
+      .sub-nav-fixed .sub-nav-links a:hover,
+      .sub-nav-fixed .sub-nav-links a.active {
         color: #2563eb !important;
         border-bottom-color: #2563eb !important;
         background: rgba(37, 99, 235, 0.1) !important;
       }
 
-      .force-subnav-links a.active {
+      .sub-nav-fixed .sub-nav-links a.active {
         font-weight: 600 !important;
       }
 
-      /* Ensure main content starts below sub-nav */
+      /* Adjust main content to account for both navbars */
       .main-layout {
-        padding-top: 6rem !important; /* Extra space for sub-nav */
+        padding-top: 140px !important; /* Space for both navbars (70px + 60px + 10px margin) */
         min-height: 100vh !important;
       }
 
-      /* Debug border to make sub-nav visible */
-      .debug-border {
-        border: 3px solid red !important;
-        background: yellow !important;
+      /* Ensure main content container has proper spacing */
+      .container {
+        max-width: 1200px !important;
+        margin: 0 auto !important;
+        padding: 2rem !important;
       }
     </style>
   </head>
@@ -94,10 +111,10 @@
       </div>
     </nav>
 
-    <!-- FORCED VISIBLE SUB-NAVIGATION -->
-    <div class="force-subnav-visible debug-border">
-      <div class="force-subnav-container">
-        <div class="force-subnav-links">
+    <!-- FIXED SUB-NAVIGATION -->
+    <div class="sub-nav-fixed">
+      <div class="sub-nav-container">
+        <div class="sub-nav-links">
           <a href="#" data-search-type="tags-counts" class="active"
             >Images/Videos Search by Tags & Counts</a
           >
@@ -113,21 +130,6 @@
     <div class="main-layout">
       <div class="container">
         <h1 class="page-title">Search & Management</h1>
-
-        <!-- Debug info -->
-        <div
-          style="
-            background: #e0f2fe;
-            border: 2px solid #0891b2;
-            padding: 1rem;
-            margin-bottom: 2rem;
-            border-radius: 0.5rem;
-          ">
-          <strong>🔍 DEBUG:</strong> Can you see the yellow sub-navigation bar
-          with red border above this message?<br />
-          <strong>Current tab:</strong>
-          <span id="debugCurrentTab">tags-counts</span>
-        </div>
 
         <!-- Images/Videos Search by Tags & Counts -->
         <div class="search-form" id="tags-counts-form">
@@ -463,189 +465,6 @@
     </div>
 
     <script src="../shared/js/common.js"></script>
-    <script>
-      // Enhanced search.js with debug info
-      let selectedFiles = [];
-      let currentSearchResults = [];
-      let searchUploadedFile = null;
-
-      function initializeSearch() {
-        console.log("🔍 Initializing search functionality");
-
-        const searchTabs = document.querySelectorAll(".force-subnav-links a");
-        console.log("📋 Found", searchTabs.length, "search tabs");
-
-        searchTabs.forEach((tab, index) => {
-          const searchType = tab.getAttribute("data-search-type");
-          console.log(`🔗 Setting up tab ${index + 1}: ${searchType}`);
-
-          tab.addEventListener("click", (e) => {
-            e.preventDefault();
-            console.log(`🖱️ Tab clicked: ${searchType}`);
-
-            searchTabs.forEach((t) => t.classList.remove("active"));
-            tab.classList.add("active");
-            showSearchForm(searchType);
-
-            // Update debug info
-            document.getElementById("debugCurrentTab").textContent = searchType;
-          });
-        });
-
-        initializeSearchFileUpload();
-        initializeDeleteConfirmation();
-        showSearchForm("tags-counts");
-
-        console.log("✅ Search initialization complete");
-      }
-
-      function showSearchForm(searchType) {
-        console.log(`📄 Showing search form: ${searchType}`);
-
-        document.querySelectorAll(".search-form").forEach((form) => {
-          form.style.display = "none";
-        });
-
-        const selectedForm = document.getElementById(`${searchType}-form`);
-        if (selectedForm) {
-          selectedForm.style.display = "block";
-          console.log(`✅ Form ${searchType} is now visible`);
-        } else {
-          console.error(`❌ ERROR: Form ${searchType} not found!`);
-        }
-
-        hideSearchResults();
-        clearSelection();
-      }
-
-      function addTagCountPair() {
-        const container = document.getElementById("tagCountPairs");
-        const pairDiv = document.createElement("div");
-        pairDiv.className = "tag-count-pair";
-        pairDiv.innerHTML = `
-          <select class="tag-select">
-            <option value="">Select bird species</option>
-            <option value="crow">Crow</option>
-            <option value="pigeon">Pigeon</option>
-            <option value="sparrow">Sparrow</option>
-            <option value="robin">Robin</option>
-          </select>
-          <input type="number" class="count-input" placeholder="Count" min="1">
-          <button class="btn-remove-tag" onclick="this.parentElement.remove()">× Remove</button>
-        `;
-        container.appendChild(pairDiv);
-      }
-
-      function resetTagsCountsForm() {
-        const container = document.getElementById("tagCountPairs");
-        container.innerHTML = `
-          <div class="tag-count-pair">
-            <select class="tag-select">
-              <option value="">Select bird species</option>
-              <option value="crow">Crow</option>
-              <option value="pigeon">Pigeon</option>
-              <option value="sparrow">Sparrow</option>
-              <option value="robin">Robin</option>
-            </select>
-            <input type="number" class="count-input" placeholder="Count" min="1">
-            <button class="btn-remove-tag" onclick="this.parentElement.remove()">× Remove</button>
-          </div>
-        `;
-        hideSearchResults();
-      }
-
-      function clearTagsForm() {
-        document.getElementById("speciesSelect").selectedIndex = -1;
-        hideSearchResults();
-      }
-
-      function clearThumbnailForm() {
-        document.getElementById("thumbnailUrl").value = "";
-        hideSearchResults();
-      }
-
-      function clearFileUploadForm() {
-        document.getElementById("searchFileInput").value = "";
-        document.getElementById("searchByFileBtn").disabled = true;
-        searchUploadedFile = null;
-        hideSearchResults();
-      }
-
-      function searchByTagsAndCounts() {
-        alert("🔍 Search by Tags & Counts - Will connect to backend APIs");
-      }
-
-      function searchByTags() {
-        alert("🔍 Search by Tags - Will connect to backend APIs");
-      }
-
-      function searchByThumbnailUrl() {
-        alert("🔍 Search by Thumbnail URL - Will connect to backend APIs");
-      }
-
-      function searchByFileUpload() {
-        alert("🔍 Search by File Upload - Will connect to backend APIs");
-      }
-
-      function hideSearchResults() {
-        const section = document.getElementById("searchResultsSection");
-        if (section) section.style.display = "none";
-      }
-
-      function clearSelection() {
-        selectedFiles = [];
-      }
-
-      function initializeSearchFileUpload() {
-        const fileInput = document.getElementById("searchFileInput");
-        if (fileInput) {
-          fileInput.addEventListener("change", (e) => {
-            const file = e.target.files[0];
-            if (file) {
-              searchUploadedFile = file;
-              document.getElementById("searchByFileBtn").disabled = false;
-            }
-          });
-        }
-      }
-
-      function initializeDeleteConfirmation() {
-        // Implementation for delete confirmation
-      }
-
-      function showAddTagsModal() {
-        alert("Add Tags modal - Will be implemented");
-      }
-
-      function showRemoveTagsModal() {
-        alert("Remove Tags modal - Will be implemented");
-      }
-
-      function showDeleteFilesModal() {
-        alert("Delete Files modal - Will be implemented");
-      }
-
-      function showSignOutModal() {
-        const modal = document.getElementById("signOutModal");
-        if (modal) modal.classList.add("active");
-      }
-
-      function hideSignOutModal() {
-        const modal = document.getElementById("signOutModal");
-        if (modal) modal.classList.remove("active");
-      }
-
-      function confirmSignOut() {
-        hideSignOutModal();
-        // Clear session and redirect
-        sessionStorage.clear();
-        window.location.href = "../index.html";
-      }
-
-      document.addEventListener("DOMContentLoaded", () => {
-        console.log("🌟 PAGE LOADED - Starting initialization");
-        initializeSearch();
-      });
-    </script>
+    <script src="js/search.js"></script>
   </body>
 </html>
