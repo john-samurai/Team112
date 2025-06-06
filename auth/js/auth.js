@@ -1,7 +1,7 @@
 // Cognito Configuration
 const COGNITO_CONFIG = {
   UserPoolId: "ap-southeast-2_rXnAUdmtr",
-  ClientId: "bf6ecr7bml75im5q13pf26g1n",
+  ClientId: "77so3j6u54v3qk4qttle2k8tsk",
   Region: "ap-southeast-2",
 };
 
