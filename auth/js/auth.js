@@ -1,7 +1,7 @@
 // Cognito Configuration
 const COGNITO_CONFIG = {
   UserPoolId: "ap-southeast-2_rXnAUdmtr",
-  ClientId: "77so3j6u54v3qk4qttle2k8tsk",
+  ClientId: "PUT_YOUR_NEW_CLIENT_ID_HERE", // Replace with new Client ID (no secret)
   Region: "ap-southeast-2",
 };
 
@@ -24,6 +24,13 @@ function signUp(event) {
   // Validate inputs
   if (!email || !address || !firstName || !lastName || !password) {
     alert("Please fill in all fields");
+    return;
+  }
+
+  // Client-side password validation (optional - helps user experience)
+  const passwordErrors = validatePassword(password);
+  if (passwordErrors.length > 0) {
+    alert("Password requirements:\n" + passwordErrors.join("\n"));
     return;
   }
 
@@ -64,6 +71,32 @@ function signUp(event) {
     // Redirect to confirmation page or show confirmation form
     showEmailVerification();
   });
+}
+
+// Optional: Client-side password validation to help users
+function validatePassword(password) {
+  const errors = [];
+
+  // Match your Cognito password policy exactly
+  if (password.length < 15) {
+    errors.push("• At least 15 characters");
+  }
+  if (!/[A-Z]/.test(password)) {
+    errors.push("• At least one uppercase letter (A-Z)");
+  }
+  if (!/[a-z]/.test(password)) {
+    errors.push("• At least one lowercase letter (a-z)");
+  }
+  if (!/[0-9]/.test(password)) {
+    errors.push("• At least one number (0-9)");
+  }
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    errors.push(
+      "• At least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)"
+    );
+  }
+
+  return errors;
 }
 
 // Show email verification form
