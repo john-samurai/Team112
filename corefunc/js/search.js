@@ -1,4 +1,4 @@
-// Complete Search & Management functionality with all missing functions
+// Complete Search & Management functionality with Thumbnail URL Search
 let selectedFiles = [];
 let currentSearchResults = [];
 let searchUploadedFile = null;
@@ -15,9 +15,9 @@ const SEARCH_API_CONFIG = {
   searchByTagsEndpoint:
     "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/birdtag/search-s",
   thumbnailSearchEndpoint:
-    "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/birdtag/search-t", // ADDED
+    "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/birdtag/search-t",
 
-  // Future endpoints (keep as is)
+  // Future endpoints
   searchByFileEndpoint:
     "https://your-api-id.execute-api.region.amazonaws.com/dev/birdtag/search-file",
   addTagsEndpoint:
@@ -86,9 +86,8 @@ function handleSearchError(error, context = "Search") {
   hideSearchResults();
 }
 
-// Dynamic Species Loading with better error handling
+// Dynamic Species Loading
 async function getSpeciesList() {
-  // Check cache first
   if (
     cachedSpecies &&
     speciesCacheTimestamp &&
@@ -120,7 +119,6 @@ async function getSpeciesList() {
       const data = await response.json();
       debugLog("Species API response data", data);
 
-      // Try different possible response structures
       let speciesList = [];
       if (data.species) {
         speciesList = data.species;
@@ -137,8 +135,7 @@ async function getSpeciesList() {
         }
       }
 
-      // Cache the results
-      cachedSpecies = speciesList.sort(); // Sort alphabetically
+      cachedSpecies = speciesList.sort();
       speciesCacheTimestamp = Date.now();
 
       debugLog(`Loaded ${speciesList.length} species from API`, speciesList);
@@ -150,8 +147,6 @@ async function getSpeciesList() {
     }
   } catch (error) {
     console.error("Failed to fetch species from API:", error);
-
-    // Fall back to hardcoded list
     const fallbackSpecies = [
       "crow",
       "pigeon",
@@ -173,7 +168,7 @@ async function getSpeciesList() {
   }
 }
 
-// Main search function - FIXED to handle your API response format
+// Main search function for tags
 async function searchByTags() {
   debugLog("=== Starting Search by Tags ===");
 
@@ -200,7 +195,6 @@ async function searchByTags() {
   try {
     showSearchLoading();
 
-    // Build API URL with query parameters
     const queryParams = new URLSearchParams();
     selectedSpecies.forEach((species, index) => {
       queryParams.append(`tag${index + 1}`, species);
@@ -232,8 +226,6 @@ async function searchByTags() {
       const data = await response.json();
       debugLog("Raw API response data", data);
 
-      // YOUR API RETURNS: {"results": [...], "total": 2}
-      // Extract the results array
       const results = data.results || [];
       debugLog(`Found ${results.length} results in API response`, results);
 
@@ -243,8 +235,6 @@ async function searchByTags() {
         return;
       }
 
-      // Convert API response to displayable format
-      // Your API now provides: thumbnail_url, full_url (for viewing), and download_url (for downloading)
       const searchResults = {
         results: results.map((item, index) => {
           debugLog(`Processing result item ${index + 1}`, item);
@@ -255,13 +245,13 @@ async function searchByTags() {
             shortenedPath: item.filename || `file-${index}`,
             type: item.file_type || "image",
             tags: selectedSpecies.reduce((acc, species) => {
-              acc[species] = 1; // Default count of 1 for each searched species
+              acc[species] = 1;
               return acc;
             }, {}),
             thumbnailUrl: item.thumbnail_url,
-            fullUrl: item.full_url, // For viewing (no download headers)
-            downloadUrl: item.download_url, // For downloading (with download headers)
-            presignedUrl: item.thumbnail_url, // Use thumbnail URL as presigned URL
+            fullUrl: item.full_url,
+            downloadUrl: item.download_url,
+            presignedUrl: item.thumbnail_url,
             s3Key: item.filename || `file-${index}`,
           };
         }),
@@ -300,6 +290,181 @@ async function searchByTags() {
   }
 
   debugLog("=== End Search by Tags ===");
+}
+
+// THUMBNAIL SEARCH FUNCTION
+async function searchByThumbnailUrl() {
+  debugLog("=== Starting Thumbnail URL Search ===");
+
+  const thumbnailUrl = document.getElementById("thumbnailUrl").value.trim();
+
+  if (!thumbnailUrl) {
+    showNotification("Please enter a thumbnail URL", "error");
+    return;
+  }
+
+  debugLog("Input thumbnail URL:", thumbnailUrl);
+
+  // Extract filename from URL
+  let thumbnailFilename = thumbnailUrl;
+  if (thumbnailUrl.includes("/")) {
+    thumbnailFilename = thumbnailUrl.split("/").pop();
+    if (thumbnailFilename.includes("?")) {
+      thumbnailFilename = thumbnailFilename.split("?")[0];
+    }
+  }
+
+  debugLog("Extracted filename:", thumbnailFilename);
+
+  // Validate that it's a thumbnail (has thumb_ prefix)
+  if (!thumbnailFilename.startsWith("thumb_")) {
+    showNotification(
+      "Please enter a valid thumbnail URL (filename should start with 'thumb_')",
+      "error"
+    );
+    return;
+  }
+
+  try {
+    showSearchLoading();
+
+    const results = await searchThumbnailAPI(thumbnailFilename);
+    debugLog("Thumbnail API results:", results);
+
+    if (results && results.links && results.links.length > 0) {
+      const displayResults = {
+        results: results.links.map((fullImageUrl, index) => {
+          const cleanUrl = fullImageUrl.split("?")[0];
+          const filename = cleanUrl.split("/").pop();
+
+          return {
+            id: `thumbnail-result-${index}`,
+            filename: filename,
+            type: "image",
+            tags: { detected: 1 },
+            thumbnailUrl: thumbnailUrl,
+            fullUrl: fullImageUrl,
+            downloadUrl: fullImageUrl,
+            s3Key: cleanUrl.split("/").slice(-2).join("/"),
+          };
+        }),
+        total: results.links.length,
+        searchType: "thumbnail",
+        searchParams: { thumbnailUrl: thumbnailUrl },
+      };
+
+      debugLog("Display results:", displayResults);
+
+      displaySearchResults(displayResults, "thumbnail");
+      showNotification(
+        `Found ${results.links.length} matching image(s)`,
+        "success"
+      );
+    } else {
+      const emptyResults = {
+        results: [],
+        total: 0,
+        searchType: "thumbnail",
+        searchParams: { thumbnailUrl: thumbnailUrl },
+      };
+      displaySearchResults(emptyResults, "thumbnail");
+      showNotification(
+        "No matching full-size image found for this thumbnail",
+        "info"
+      );
+    }
+  } catch (error) {
+    console.error("Thumbnail search error:", error);
+    showNotification("Search failed: " + error.message, "error");
+    hideSearchResults();
+  }
+}
+
+// API call for thumbnail search
+async function searchThumbnailAPI(thumbnailFilename) {
+  try {
+    const idToken = getAuthenticationToken();
+
+    if (!idToken) {
+      throw new Error(
+        "Authentication required. Please sign in to use this feature."
+      );
+    }
+
+    const queryParams = new URLSearchParams({
+      turl1: thumbnailFilename.toLowerCase(),
+    });
+
+    const apiUrl = `${
+      SEARCH_API_CONFIG.thumbnailSearchEndpoint
+    }?${queryParams.toString()}`;
+    debugLog("Thumbnail search API URL", apiUrl);
+
+    const requestHeaders = {
+      "Content-Type": "application/json",
+    };
+
+    if (idToken.startsWith("Bearer ")) {
+      requestHeaders["Authorization"] = idToken;
+    } else {
+      requestHeaders["Authorization"] = idToken;
+    }
+
+    const response = await fetch(apiUrl, {
+      method: "GET",
+      headers: requestHeaders,
+      mode: "cors",
+    });
+
+    debugLog("Thumbnail search response status:", response.status);
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}`;
+      try {
+        const errorText = await response.text();
+        errorMessage += `: ${errorText}`;
+      } catch (e) {
+        // Could not read error response
+      }
+
+      if (response.status === 401) {
+        throw new Error(
+          "Authentication token expired. Please sign out and sign in again."
+        );
+      } else if (response.status === 403) {
+        throw new Error(
+          "Access denied. Please check your permissions or sign in again."
+        );
+      }
+
+      throw new Error(errorMessage);
+    }
+
+    const result = await response.json();
+    debugLog("Thumbnail search API result", result);
+    return result;
+  } catch (error) {
+    if (
+      error.name === "TypeError" &&
+      error.message.includes("Failed to fetch")
+    ) {
+      throw new Error(
+        "Cannot connect to API. Check if you're signed in and try again."
+      );
+    } else if (error.message.includes("401")) {
+      throw new Error(
+        "Authentication token expired. Please sign out and sign in again."
+      );
+    } else if (error.message.includes("403")) {
+      throw new Error("Access denied. Please check your permissions.");
+    } else if (error.message.includes("404")) {
+      throw new Error(
+        "API endpoint not found. Check the API Gateway configuration."
+      );
+    } else {
+      throw error;
+    }
+  }
 }
 
 // Helper function to display no results
@@ -344,7 +509,7 @@ function hideSearchResults() {
   clearSelection();
 }
 
-// Display search results
+// Display search results - INCLUDES THUMBNAIL SUPPORT
 function displaySearchResults(results, searchType) {
   debugLog("=== Displaying Search Results ===", results);
 
@@ -366,9 +531,11 @@ function displaySearchResults(results, searchType) {
   } else {
     debugLog(`Displaying ${results.results.length} results`);
 
+    // Special handling for thumbnail search results
     if (searchType === "thumbnail") {
       resultsTitle.textContent = "Full-Size Image Found";
       resultsCount.textContent = `Found matching full-size image`;
+
       resultsContainer.innerHTML = results.results
         .map((file) => createThumbnailResultCard(file))
         .join("");
@@ -388,40 +555,91 @@ function displaySearchResults(results, searchType) {
   debugLog("=== Results Display Complete ===");
 }
 
-// Create result card
+// CREATE THUMBNAIL RESULT CARD - THIS WAS MISSING!
+function createThumbnailResultCard(file) {
+  debugLog("Creating thumbnail result card", file);
+
+  const fullUrl = file.fullUrl || "";
+  const shortUrl =
+    fullUrl.length > 80
+      ? fullUrl.substring(0, 60) +
+        "..." +
+        fullUrl.substring(fullUrl.length - 20)
+      : fullUrl;
+
+  return `
+    <div class="result-card thumbnail-result-card" data-file-id="${file.id}">
+      <!-- Large Preview Display -->
+      <div class="thumbnail-result-preview">
+        <img src="${file.fullUrl}" alt="${file.filename}" 
+             class="large-image-preview" 
+             onerror="this.src='${
+               file.thumbnailUrl || ""
+             }'; this.alt='Image preview failed';">
+      </div>
+      
+      <div class="thumbnail-result-info">
+        <div class="result-filename"><strong>Filename:</strong> ${
+          file.filename
+        }</div>
+        <div class="result-urls">
+          <div class="url-item">
+            <strong>Thumbnail URL:</strong> 
+            <span class="url-text">${file.thumbnailUrl || "N/A"}</span>
+          </div>
+          <div class="url-item">
+            <strong>Full-size URL (Pre-signed URL):</strong> 
+            <a href="${file.fullUrl}" target="_blank" class="url-link" title="${
+    file.fullUrl
+  }">
+              ${shortUrl}
+            </a>
+            <button class="btn-copy-url" onclick="copyToClipboard('${file.fullUrl.replace(
+              /'/g,
+              "\\'"
+            )}')">📋 Copy Full URL</button>
+          </div>
+        </div>
+        <div class="result-actions">
+          <button class="btn-action" onclick="viewFile('${
+            file.id
+          }')">View Full Size</button>
+          <button class="btn-action" onclick="downloadFile('${
+            file.id
+          }')">Download</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Create result card for regular searches
 function createResultCard(file, searchType) {
   const tagsDisplay = Object.entries(file.tags)
     .map(([species, count]) => `${species} ×${count}`)
     .join(", ");
 
-  // Create thumbnail content based on file type
   let thumbnailContent;
   if (file.type === "image" && file.thumbnailUrl) {
-    // Show thumbnail image for images
     thumbnailContent = `<img src="${file.thumbnailUrl}" alt="${file.filename}" class="result-thumbnail">`;
   } else if (file.type === "video") {
-    // Show video icon for videos
     thumbnailContent = `<div class="result-thumbnail result-icon">${getFileTypeIcon(
       "video"
     )}</div>`;
   } else if (file.type === "audio") {
-    // Show audio icon for audio files
     thumbnailContent = `<div class="result-thumbnail result-icon">${getFileTypeIcon(
       "audio"
     )}</div>`;
   } else {
-    // Default to image icon
     thumbnailContent = `<div class="result-thumbnail result-icon">${getFileTypeIcon(
       "image"
     )}</div>`;
   }
 
-  // Extract FULL S3 URL for thumbnail (without query parameters) - NO SHORTENING
   const thumbnailS3Url = file.thumbnailUrl
     ? file.thumbnailUrl.split("?")[0]
     : "No thumbnail URL available";
 
-  // Get action buttons based on file type
   const actionButtons = getActionButtons(file);
 
   return `
@@ -436,7 +654,6 @@ function createResultCard(file, searchType) {
         <div class="result-tags">${tagsDisplay}</div>
         <div class="result-file-type">${file.type.toUpperCase()}</div>
         
-        <!-- FULL S3 URL for thumbnail - NO SHORTENING -->
         <div class="result-url-section">
           <div class="url-label">Full S3 URL for thumbnail:</div>
           <div class="full-url-display" title="${thumbnailS3Url}">
@@ -452,21 +669,7 @@ function createResultCard(file, searchType) {
   `;
 }
 
-// Get file type icon
-function getFileTypeIcon(type) {
-  switch (type) {
-    case "image":
-      return "🖼️";
-    case "video":
-      return "🎥";
-    case "audio":
-      return "🎵";
-    default:
-      return "📄";
-  }
-}
-
-// Helper function to shorten URLs for display
+// Helper function to shorten URLs
 function shortenUrl(url, maxLength = 60) {
   if (!url) return "No URL available";
 
@@ -474,7 +677,6 @@ function shortenUrl(url, maxLength = 60) {
     return url;
   }
 
-  // Split at the filename part for better readability
   const urlParts = url.split("?");
   const baseUrl = urlParts[0];
   const queryString = urlParts[1];
@@ -483,7 +685,6 @@ function shortenUrl(url, maxLength = 60) {
     return `${baseUrl}?...`;
   }
 
-  // Show beginning and end of URL
   const start = url.substring(0, Math.floor(maxLength / 2));
   const end = url.substring(url.length - Math.floor(maxLength / 2));
   return `${start}...${end}`;
@@ -510,6 +711,19 @@ function getActionButtons(file) {
   return `<button class="btn-action" onclick="downloadFile('${file.id}')">Download</button>`;
 }
 
+function getFileTypeIcon(type) {
+  switch (type) {
+    case "image":
+      return "🖼️";
+    case "video":
+      return "🎥";
+    case "audio":
+      return "🎵";
+    default:
+      return "📄";
+  }
+}
+
 // File actions
 function viewFile(fileId) {
   const file = currentSearchResults.find((f) => f.id === fileId);
@@ -520,11 +734,9 @@ function viewFile(fileId) {
   }
 }
 
-// Updated viewFullSizeImage function - opens FULL SIZE image, not thumbnail
 function viewFullSizeImage(fileId) {
   const file = currentSearchResults.find((f) => f.id === fileId);
   if (file && file.fullUrl) {
-    // Open the FULL SIZE image (full_url), not the thumbnail
     window.open(file.fullUrl, "_blank");
   } else {
     showNotification("Full size image not found", "error");
@@ -540,7 +752,7 @@ function playFile(fileId) {
   }
 }
 
-// Enhanced downloadFile function - uses separate download URL
+// Enhanced downloadFile function
 async function downloadFile(fileId) {
   debugLog("=== Download File Function ===");
 
@@ -552,9 +764,8 @@ async function downloadFile(fileId) {
     return;
   }
 
-  // Use the dedicated DOWNLOAD URL (with download headers)
-  const downloadUrl = file.downloadUrl || file.fullUrl; // Fallback to fullUrl if downloadUrl not available
-  debugLog("Download URL (with download headers)", downloadUrl);
+  const downloadUrl = file.downloadUrl || file.fullUrl;
+  debugLog("Download URL", downloadUrl);
 
   if (!downloadUrl) {
     showNotification("Download URL not available", "error");
@@ -562,7 +773,6 @@ async function downloadFile(fileId) {
   }
 
   try {
-    // Extract clean filename for download
     let downloadFilename = file.filename || "download.jpg";
     if (downloadFilename.startsWith("thumb_")) {
       downloadFilename = downloadFilename.replace("thumb_", "");
@@ -570,10 +780,8 @@ async function downloadFile(fileId) {
 
     debugLog("Download filename", downloadFilename);
 
-    // Show immediate feedback
     showNotification(`Download initiated: ${downloadFilename}`, "info");
 
-    // Enhanced Method 1: Fetch with better error handling
     try {
       debugLog("Attempting fetch + blob download");
 
@@ -587,10 +795,6 @@ async function downloadFile(fileId) {
       });
 
       debugLog("Fetch response status:", response.status);
-      debugLog(
-        "Response headers:",
-        Object.fromEntries(response.headers.entries())
-      );
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -599,29 +803,23 @@ async function downloadFile(fileId) {
       const blob = await response.blob();
       debugLog("Blob created", { size: blob.size, type: blob.type });
 
-      // Force download using blob with better browser compatibility
       if (window.navigator && window.navigator.msSaveOrOpenBlob) {
-        // IE/Edge
         window.navigator.msSaveOrOpenBlob(blob, downloadFilename);
         showNotification(`Download completed: ${downloadFilename}`, "success");
         debugLog("IE/Edge download successful");
         return;
       }
 
-      // Modern browsers
       const blobUrl = window.URL.createObjectURL(blob);
       debugLog("Blob URL created:", blobUrl);
 
-      // Create and trigger download link
       const link = document.createElement("a");
       link.style.display = "none";
       link.href = blobUrl;
       link.download = downloadFilename;
 
-      // Add click event listener to ensure proper cleanup
       link.addEventListener("click", function () {
         debugLog("Download link clicked");
-        // Clean up after a short delay
         setTimeout(() => {
           window.URL.revokeObjectURL(blobUrl);
           debugLog("Blob URL revoked");
@@ -636,248 +834,12 @@ async function downloadFile(fileId) {
       debugLog("Modern browser download successful");
     } catch (fetchError) {
       debugLog("Fetch method failed", fetchError);
-
-      // Method 2: Try XMLHttpRequest approach
-      try {
-        debugLog("Attempting XMLHttpRequest download");
-
-        const xhr = new XMLHttpRequest();
-        xhr.open("GET", downloadUrl, true);
-        xhr.responseType = "blob";
-
-        xhr.onload = function () {
-          if (xhr.status === 200) {
-            const blob = xhr.response;
-            debugLog("XHR blob created", { size: blob.size });
-
-            // Create download
-            const blobUrl = window.URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.style.display = "none";
-            link.href = blobUrl;
-            link.download = downloadFilename;
-
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-
-            window.URL.revokeObjectURL(blobUrl);
-
-            showNotification(
-              `Download completed: ${downloadFilename}`,
-              "success"
-            );
-            debugLog("XHR download successful");
-          } else {
-            throw new Error(`XHR failed with status ${xhr.status}`);
-          }
-        };
-
-        xhr.onerror = function () {
-          throw new Error("XHR request failed");
-        };
-
-        xhr.send();
-      } catch (xhrError) {
-        debugLog("XHR method failed", xhrError);
-
-        // Method 3: Open in new window with download instructions
-        debugLog("Opening download instructions modal");
-        showDownloadInstructionsModal(downloadUrl, downloadFilename);
-      }
+      showDownloadInstructionsModal(downloadUrl, downloadFilename);
     }
   } catch (error) {
     console.error("All download methods failed:", error);
     debugLog("All download methods failed", error);
     showDownloadInstructionsModal(downloadUrl, downloadFilename);
-  }
-}
-
-// ADDED: Real Thumbnail URL Search Integration
-async function searchByThumbnailUrl() {
-  debugLog("=== Starting Thumbnail URL Search ===");
-
-  const thumbnailUrl = document.getElementById("thumbnailUrl").value.trim();
-
-  if (!thumbnailUrl) {
-    showNotification("Please enter a thumbnail URL", "error");
-    return;
-  }
-
-  debugLog("Input thumbnail URL:", thumbnailUrl);
-
-  // Extract filename from URL - handle both full S3 URLs and just filenames
-  let thumbnailFilename = thumbnailUrl;
-  if (thumbnailUrl.includes("/")) {
-    // Extract just the filename from the full S3 URL
-    thumbnailFilename = thumbnailUrl.split("/").pop();
-
-    // Remove query parameters if present
-    if (thumbnailFilename.includes("?")) {
-      thumbnailFilename = thumbnailFilename.split("?")[0];
-    }
-  }
-
-  debugLog("Extracted filename:", thumbnailFilename);
-
-  // Validate that it's a thumbnail (has thumb_ prefix)
-  if (!thumbnailFilename.startsWith("thumb_")) {
-    showNotification(
-      "Please enter a valid thumbnail URL (filename should start with 'thumb_')",
-      "error"
-    );
-    return;
-  }
-
-  try {
-    showSearchLoading();
-
-    // Call the real API with just the filename
-    const results = await searchThumbnailAPI(thumbnailFilename);
-    debugLog("API results:", results);
-
-    if (results && results.links && results.links.length > 0) {
-      // Convert API response to displayable format
-      const displayResults = {
-        results: results.links.map((fullImageUrl, index) => {
-          // Extract clean filename (without query parameters)
-          const cleanUrl = fullImageUrl.split("?")[0]; // Remove query parameters
-          const filename = cleanUrl.split("/").pop();
-
-          return {
-            id: `thumbnail-result-${index}`,
-            filename: filename, // Clean filename without query params
-            type: "image",
-            tags: { detected: 1 }, // Placeholder since we don't get tags from this API
-            thumbnailUrl: thumbnailUrl, // Original thumbnail URL input by user
-            fullUrl: fullImageUrl, // Keep full pre-signed URL for access
-            downloadUrl: fullImageUrl, // Same as fullUrl for thumbnail search
-            s3Key: cleanUrl.split("/").slice(-2).join("/"), // Extract relative path from clean URL
-          };
-        }),
-        total: results.links.length,
-        searchType: "thumbnail",
-        searchParams: { thumbnailUrl: thumbnailUrl },
-      };
-
-      debugLog("Display results:", displayResults);
-
-      displaySearchResults(displayResults, "thumbnail");
-      showNotification(
-        `Found ${results.links.length} matching image(s)`,
-        "success"
-      );
-    } else {
-      // No results found
-      const emptyResults = {
-        results: [],
-        total: 0,
-        searchType: "thumbnail",
-        searchParams: { thumbnailUrl: thumbnailUrl },
-      };
-      displaySearchResults(emptyResults, "thumbnail");
-      showNotification(
-        "No matching full-size image found for this thumbnail",
-        "info"
-      );
-    }
-  } catch (error) {
-    console.error("Thumbnail search error:", error);
-    showNotification("Search failed: " + error.message, "error");
-    hideSearchResults();
-  }
-}
-
-// ADDED: Real API call for thumbnail search with Cognito authentication
-async function searchThumbnailAPI(thumbnailFilename) {
-  try {
-    // Get Cognito ID token
-    const idToken = getAuthenticationToken();
-
-    if (!idToken) {
-      throw new Error(
-        "Authentication required. Please sign in to use this feature."
-      );
-    }
-
-    // Build query parameters - your Lambda expects turl1, turl2, etc.
-    const queryParams = new URLSearchParams({
-      turl1: thumbnailFilename.toLowerCase(), // Convert to lowercase as your Lambda does
-    });
-
-    const apiUrl = `${
-      SEARCH_API_CONFIG.thumbnailSearchEndpoint
-    }?${queryParams.toString()}`;
-    debugLog("Thumbnail search API URL", apiUrl);
-
-    // Try different authorization header formats
-    const requestHeaders = {
-      "Content-Type": "application/json",
-    };
-
-    // Try different authorization formats that Cognito might expect
-    if (idToken.startsWith("Bearer ")) {
-      requestHeaders["Authorization"] = idToken; // Already has Bearer prefix
-    } else {
-      requestHeaders["Authorization"] = idToken; // Direct token
-    }
-
-    const response = await fetch(apiUrl, {
-      method: "GET",
-      headers: requestHeaders,
-      mode: "cors",
-    });
-
-    debugLog("Thumbnail search response status:", response.status);
-
-    if (!response.ok) {
-      let errorMessage = `HTTP ${response.status}`;
-      try {
-        const errorText = await response.text();
-        errorMessage += `: ${errorText}`;
-      } catch (e) {
-        // Could not read error response
-      }
-
-      // Specific error handling for authentication issues
-      if (response.status === 401) {
-        throw new Error(
-          "Authentication token expired. Please sign out and sign in again."
-        );
-      } else if (response.status === 403) {
-        throw new Error(
-          "Access denied. Please check your permissions or sign in again."
-        );
-      }
-
-      throw new Error(errorMessage);
-    }
-
-    const result = await response.json();
-    debugLog("Thumbnail search API result", result);
-    return result;
-  } catch (error) {
-    // Provide more specific error messages
-    if (
-      error.name === "TypeError" &&
-      error.message.includes("Failed to fetch")
-    ) {
-      throw new Error(
-        "Cannot connect to API. Check if you're signed in and try again."
-      );
-    } else if (error.message.includes("401")) {
-      throw new Error(
-        "Authentication token expired. Please sign out and sign in again."
-      );
-    } else if (error.message.includes("403")) {
-      throw new Error("Access denied. Please check your permissions.");
-    } else if (error.message.includes("404")) {
-      throw new Error(
-        "API endpoint not found. Check the API Gateway configuration."
-      );
-    } else {
-      throw error;
-    }
   }
 }
 
@@ -906,7 +868,6 @@ function showDownloadInstructionsModal(downloadUrl, filename) {
     </div>
   `;
 
-  // Style the modal
   modal.style.cssText = `
     position: fixed;
     top: 0;
@@ -964,98 +925,7 @@ function showDownloadInstructionsModal(downloadUrl, filename) {
   showNotification(`Manual download required for: ${filename}`, "info");
 }
 
-// Enhanced showFullPresignedUrl function
-function showFullPresignedUrl(fileId) {
-  const file = currentSearchResults.find((f) => f.id === fileId);
-
-  if (!file) {
-    showNotification("File not found", "error");
-    return;
-  }
-
-  const fullUrl = file.fullUrl || file.presignedUrl || "No URL available";
-
-  // Create a modal with the full URL
-  const modal = document.createElement("div");
-  modal.className = "presigned-url-modal";
-  modal.innerHTML = `
-    <div class="modal-content">
-      <h3>Full Pre-Signed URL</h3>
-      <p><strong>File:</strong> ${file.filename}</p>
-      <div class="url-display">
-        <textarea readonly class="full-url-textarea">${fullUrl}</textarea>
-      </div>
-      <div class="modal-buttons">
-        <button class="btn-copy" onclick="copyToClipboard('${fullUrl.replace(
-          /'/g,
-          "\\'"
-        )}')">📋 Copy URL</button>
-        <button class="btn-close" onclick="this.closest('.presigned-url-modal').remove()">Close</button>
-      </div>
-    </div>
-  `;
-
-  // Style the modal
-  modal.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0,0,0,0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2000;
-  `;
-
-  const modalContent = modal.querySelector(".modal-content");
-  modalContent.style.cssText = `
-    background: white;
-    padding: 2rem;
-    border-radius: 0.5rem;
-    max-width: 90%;
-    max-height: 80%;
-    min-width: 600px;
-  `;
-
-  const textarea = modal.querySelector(".full-url-textarea");
-  textarea.style.cssText = `
-    width: 100%;
-    height: 200px;
-    margin: 1rem 0;
-    font-family: monospace;
-    font-size: 0.8rem;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    padding: 0.5rem;
-    resize: vertical;
-  `;
-
-  const buttons = modal.querySelectorAll("button");
-  buttons.forEach((button) => {
-    button.style.cssText = `
-      padding: 0.5rem 1rem;
-      margin: 0 0.5rem;
-      border: none;
-      border-radius: 0.25rem;
-      cursor: pointer;
-      font-weight: 500;
-    `;
-  });
-
-  const copyBtn = modal.querySelector(".btn-copy");
-  copyBtn.style.backgroundColor = "#2563eb";
-  copyBtn.style.color = "white";
-
-  const closeBtn = modal.querySelector(".btn-close");
-  closeBtn.style.backgroundColor = "#6b7280";
-  closeBtn.style.color = "white";
-
-  document.body.appendChild(modal);
-}
-
-// Copy URL to clipboard
+// Copy URL to clipboard function
 function copyToClipboard(url) {
   if (navigator.clipboard && window.isSecureContext) {
     navigator.clipboard
@@ -1106,11 +976,9 @@ async function populateSpeciesSelects() {
   selectElements.forEach((select) => {
     const currentValue = select.value;
 
-    // Clear existing options except the first placeholder
     const placeholder = select.querySelector('option[value=""]');
     select.innerHTML = "";
 
-    // Add placeholder back
     if (placeholder) {
       select.appendChild(placeholder);
     } else {
@@ -1120,7 +988,6 @@ async function populateSpeciesSelects() {
       select.appendChild(defaultOption);
     }
 
-    // Add species options
     speciesList.forEach((species) => {
       const option = document.createElement("option");
       option.value = species.toLowerCase();
@@ -1128,7 +995,6 @@ async function populateSpeciesSelects() {
       select.appendChild(option);
     });
 
-    // Restore selection if it exists
     if (currentValue && speciesList.includes(currentValue)) {
       select.value = currentValue;
     }
@@ -1141,24 +1007,20 @@ async function populateSpeciesSelects() {
 
 // Show specific search form
 function showSearchForm(searchType) {
-  // Hide all search forms
   document.querySelectorAll(".search-form").forEach((form) => {
     form.style.display = "none";
   });
 
-  // Show selected form
   const selectedForm = document.getElementById(`${searchType}-form`);
   if (selectedForm) {
     selectedForm.style.display = "block";
 
-    // Only populate species selects for forms that need them
     const formsNeedingSpecies = ["tags-counts", "tags"];
     if (formsNeedingSpecies.includes(searchType)) {
       populateSpeciesSelects();
     }
   }
 
-  // Hide results when switching forms
   hideSearchResults();
   clearSelection();
 }
@@ -1232,6 +1094,14 @@ function initializeDeleteConfirmation() {
   debugLog("Delete confirmation functionality - placeholder");
 }
 
+function searchByTagsAndCounts() {
+  showNotification("Tags & Counts search not yet implemented", "info");
+}
+
+function searchByFileUpload() {
+  showNotification("File upload search not yet implemented", "info");
+}
+
 // Placeholder modal functions
 function showAddTagsModal() {
   showNotification("Add tags functionality not yet implemented", "info");
@@ -1299,26 +1169,17 @@ function initializeSearch() {
     tab.addEventListener("click", (e) => {
       e.preventDefault();
 
-      // Remove active class from all tabs
       searchTabs.forEach((t) => t.classList.remove("active"));
-
-      // Add active class to clicked tab
       tab.classList.add("active");
 
-      // Show corresponding search form
       const searchType = tab.getAttribute("data-search-type");
       showSearchForm(searchType);
     });
   });
 
-  // Initialize placeholder functions
   initializeSearchFileUpload();
   initializeDeleteConfirmation();
-
-  // Load species on page load
   populateSpeciesSelects();
-
-  // Show the first form by default - but start with tags form since it works
   showSearchForm("tags");
 
   debugLog("Search initialization complete");
