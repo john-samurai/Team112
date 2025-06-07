@@ -539,8 +539,8 @@ function playFile(fileId) {
   }
 }
 
-// Updated downloadFile function - ensures proper download of full-size file
-function downloadFile(fileId) {
+// Enhanced downloadFile function - uses pre-signed URLs for blocked public access
+async function downloadFile(fileId) {
   debugLog("=== Download File Function ===");
 
   const file = currentSearchResults.find((f) => f.id === fileId);
@@ -551,9 +551,9 @@ function downloadFile(fileId) {
     return;
   }
 
-  // Use fullUrl for download (this should be the full-size image URL)
-  const downloadUrl = file.fullUrl;
-  debugLog("Download URL", downloadUrl);
+  // Use the FULL pre-signed URL (with auth parameters) since public access is blocked
+  const downloadUrl = file.fullUrl; // This should be the pre-signed URL with auth parameters
+  debugLog("Download URL (pre-signed)", downloadUrl);
 
   if (!downloadUrl) {
     showNotification("Download URL not available", "error");
@@ -569,36 +569,104 @@ function downloadFile(fileId) {
 
     debugLog("Download filename", downloadFilename);
 
-    // Method 1: Try using download attribute (works for same-origin or CORS-enabled files)
-    const link = document.createElement("a");
-    link.href = downloadUrl;
-    link.download = downloadFilename;
-    link.style.display = "none";
+    // Show immediate feedback
+    showNotification(`Starting download: ${downloadFilename}`, "info");
 
-    // Add to DOM temporarily
-    document.body.appendChild(link);
+    // Method 1: Fetch + blob approach using pre-signed URL
+    try {
+      debugLog("Attempting fetch + blob download with pre-signed URL");
 
-    // Trigger download
-    link.click();
+      const response = await fetch(downloadUrl, {
+        method: "GET",
+        mode: "cors", // Important for S3 pre-signed URLs
+        headers: {
+          Accept: "image/*,*/*",
+        },
+      });
 
-    // Clean up
-    document.body.removeChild(link);
+      debugLog("Fetch response status:", response.status);
+      debugLog(
+        "Fetch response headers:",
+        Object.fromEntries(response.headers.entries())
+      );
 
-    showNotification(`Starting download: ${downloadFilename}`, "success");
-    debugLog("Download initiated successfully");
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const blob = await response.blob();
+      debugLog("Blob created successfully", {
+        size: blob.size,
+        type: blob.type,
+      });
+
+      // Create blob URL and download
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = downloadFilename;
+      link.style.display = "none";
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Clean up blob URL after a short delay
+      setTimeout(() => {
+        window.URL.revokeObjectURL(blobUrl);
+        debugLog("Blob URL cleaned up");
+      }, 1000);
+
+      showNotification(`Download completed: ${downloadFilename}`, "success");
+      debugLog("Fetch + blob download successful");
+    } catch (fetchError) {
+      debugLog("Fetch + blob method failed", fetchError);
+
+      // Method 2: Direct link download with pre-signed URL
+      debugLog("Attempting direct link download with pre-signed URL");
+
+      const link = document.createElement("a");
+      link.href = downloadUrl; // Use pre-signed URL directly
+      link.download = downloadFilename;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.style.display = "none";
+
+      // Force download by setting Content-Disposition header simulation
+      link.setAttribute("download", downloadFilename);
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      showNotification(`Download initiated: ${downloadFilename}`, "success");
+      debugLog("Direct link download attempted with pre-signed URL");
+    }
   } catch (error) {
     console.error("Download failed:", error);
+    debugLog("Download failed", error);
 
-    // Fallback: Open in new tab (user can manually save)
+    // Final fallback: Open pre-signed URL in new tab
     try {
-      window.open(downloadUrl, "_blank");
-      showNotification(
-        "Opening file in new tab - you can save it manually",
-        "info"
-      );
+      const newWindow = window.open(downloadUrl, "_blank");
+      if (newWindow) {
+        showNotification(
+          "Opening full-size image in new tab. Right-click and select 'Save image as...' to download",
+          "info"
+        );
+      } else {
+        showNotification(
+          "Popup blocked. Please allow popups and try again, or copy the URL manually.",
+          "error"
+        );
+      }
     } catch (fallbackError) {
-      console.error("Fallback also failed:", fallbackError);
-      showNotification("Download failed. Please try again.", "error");
+      console.error("Even fallback failed:", fallbackError);
+      showNotification(
+        "Download failed. The file might not be accessible due to permissions.",
+        "error"
+      );
     }
   }
 }
