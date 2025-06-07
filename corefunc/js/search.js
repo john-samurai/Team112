@@ -24,21 +24,11 @@ const SEARCH_API_CONFIG = {
 
 // Initialize search functionality
 function initializeSearch() {
-  console.log("Initializing search functionality...");
-
   const searchTabs = document.querySelectorAll(".sub-nav-links a");
-  console.log("Found search tabs:", searchTabs.length);
 
-  searchTabs.forEach((tab, index) => {
-    console.log(
-      `Tab ${index}:`,
-      tab.getAttribute("data-search-type"),
-      tab.textContent.trim()
-    );
-
+  searchTabs.forEach((tab) => {
     tab.addEventListener("click", (e) => {
       e.preventDefault();
-      console.log("Tab clicked:", tab.getAttribute("data-search-type"));
 
       // Remove active class from all tabs
       searchTabs.forEach((t) => t.classList.remove("active"));
@@ -59,32 +49,20 @@ function initializeSearch() {
   initializeDeleteConfirmation();
 
   // Show the first form by default
-  console.log("Showing default search form...");
   showSearchForm("tags-counts");
 }
 
 // Show specific search form
 function showSearchForm(searchType) {
-  console.log("Showing search form:", searchType);
-
   // Hide all search forms
-  const allForms = document.querySelectorAll(".search-form");
-  console.log("Found search forms:", allForms.length);
-
-  allForms.forEach((form, index) => {
-    console.log(`Form ${index} ID:`, form.id);
+  document.querySelectorAll(".search-form").forEach((form) => {
     form.style.display = "none";
   });
 
   // Show selected form
   const selectedForm = document.getElementById(`${searchType}-form`);
-  console.log("Selected form:", selectedForm);
-
   if (selectedForm) {
     selectedForm.style.display = "block";
-    console.log(`Showing form: ${searchType}-form`);
-  } else {
-    console.error(`Form not found: ${searchType}-form`);
   }
 
   // Hide results when switching forms
@@ -250,9 +228,6 @@ async function searchByThumbnailUrl() {
     return;
   }
 
-  console.log("Original URL:", thumbnailUrl);
-  console.log("Extracted filename:", thumbnailFilename);
-
   try {
     showSearchLoading();
 
@@ -296,7 +271,6 @@ async function searchByThumbnailUrl() {
       );
     }
   } catch (error) {
-    console.error("Thumbnail search error:", error);
     showNotification("Search failed: " + error.message, "error");
     hideSearchResults();
   }
@@ -323,19 +297,10 @@ async function searchThumbnailAPI(thumbnailFilename) {
       SEARCH_API_CONFIG.thumbnailSearchEndpoint
     }?${queryParams.toString()}`;
 
-    console.log("Calling API:", apiUrl);
-    console.log("Using Cognito ID token:", idToken ? "Yes" : "No");
-    console.log(
-      "Token preview:",
-      idToken ? idToken.substring(0, 50) + "..." : "None"
-    );
-
     const requestHeaders = {
       "Content-Type": "application/json",
       Authorization: idToken, // For Cognito User Pool, use the ID token directly
     };
-
-    console.log("Request headers:", requestHeaders);
 
     const response = await fetch(apiUrl, {
       method: "GET",
@@ -343,17 +308,13 @@ async function searchThumbnailAPI(thumbnailFilename) {
       mode: "cors", // Enable CORS
     });
 
-    console.log("API Response status:", response.status);
-    console.log("API Response headers:", [...response.headers.entries()]);
-
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}`;
       try {
         const errorText = await response.text();
-        console.error("API Error response:", errorText);
         errorMessage += `: ${errorText}`;
       } catch (e) {
-        console.error("Could not read error response:", e);
+        // Could not read error response
       }
 
       // Specific error handling for authentication issues
@@ -371,12 +332,8 @@ async function searchThumbnailAPI(thumbnailFilename) {
     }
 
     const result = await response.json();
-    console.log("API Response data:", result);
-
     return result;
   } catch (error) {
-    console.error("API call failed:", error);
-
     // Provide more specific error messages
     if (
       error.name === "TypeError" &&
@@ -499,8 +456,6 @@ function handleSearchFile(file) {
 // Search API calls (mock for other search types, real for thumbnail)
 async function performSearch(searchType, searchParams) {
   try {
-    console.log("Performing search:", searchType, searchParams);
-
     if (searchType === "thumbnail") {
       // This is now handled by searchByThumbnailUrl() directly
       // Return mock data as fallback
@@ -517,7 +472,6 @@ async function performSearch(searchType, searchParams) {
 
     // TODO: Replace with real API calls when backend is ready for other search types
   } catch (error) {
-    console.error("Search error:", error);
     throw error;
   }
 }
@@ -983,8 +937,6 @@ async function confirmDeleteFiles() {
 
 // Bulk operations
 async function performBulkOperation(operation, params) {
-  console.log("Performing bulk operation:", operation, params);
-
   // Simulate API delay
   await new Promise((resolve) => setTimeout(resolve, 1000));
 
@@ -1156,40 +1108,5 @@ function confirmSignOut() {
 
 // Initialize search functionality on page load
 document.addEventListener("DOMContentLoaded", () => {
-  console.log("DOM Content Loaded - Initializing search...");
-
-  // Debug: Check if elements exist
-  const searchTabs = document.querySelectorAll(".sub-nav-links a");
-  const searchForms = document.querySelectorAll(".search-form");
-
-  console.log("Search tabs found:", searchTabs.length);
-  console.log("Search forms found:", searchForms.length);
-
-  if (searchTabs.length === 0) {
-    console.error("No search tabs found! Check HTML structure.");
-  }
-
-  if (searchForms.length === 0) {
-    console.error("No search forms found! Check HTML structure.");
-  }
-
-  // Initialize search functionality
   initializeSearch();
-
-  // Debug function - you can call this from browser console
-  window.debugSearch = function () {
-    console.log("=== Search Debug Info ===");
-    console.log("Search tabs:", document.querySelectorAll(".sub-nav-links a"));
-    console.log("Search forms:", document.querySelectorAll(".search-form"));
-    console.log(
-      "Current active tab:",
-      document.querySelector(".sub-nav-links a.active")
-    );
-    console.log(
-      "Visible forms:",
-      Array.from(document.querySelectorAll(".search-form")).filter(
-        (f) => f.style.display !== "none"
-      )
-    );
-  };
 });
