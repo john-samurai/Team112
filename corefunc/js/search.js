@@ -695,6 +695,8 @@ async function downloadFile(fileId) {
 
 // ADDED: Real Thumbnail URL Search Integration
 async function searchByThumbnailUrl() {
+  debugLog("=== Starting Thumbnail URL Search ===");
+
   const thumbnailUrl = document.getElementById("thumbnailUrl").value.trim();
 
   if (!thumbnailUrl) {
@@ -702,12 +704,21 @@ async function searchByThumbnailUrl() {
     return;
   }
 
+  debugLog("Input thumbnail URL:", thumbnailUrl);
+
   // Extract filename from URL - handle both full S3 URLs and just filenames
   let thumbnailFilename = thumbnailUrl;
   if (thumbnailUrl.includes("/")) {
     // Extract just the filename from the full S3 URL
     thumbnailFilename = thumbnailUrl.split("/").pop();
+
+    // Remove query parameters if present
+    if (thumbnailFilename.includes("?")) {
+      thumbnailFilename = thumbnailFilename.split("?")[0];
+    }
   }
+
+  debugLog("Extracted filename:", thumbnailFilename);
 
   // Validate that it's a thumbnail (has thumb_ prefix)
   if (!thumbnailFilename.startsWith("thumb_")) {
@@ -723,6 +734,7 @@ async function searchByThumbnailUrl() {
 
     // Call the real API with just the filename
     const results = await searchThumbnailAPI(thumbnailFilename);
+    debugLog("API results:", results);
 
     if (results && results.links && results.links.length > 0) {
       // Convert API response to displayable format
@@ -737,7 +749,7 @@ async function searchByThumbnailUrl() {
             filename: filename, // Clean filename without query params
             type: "image",
             tags: { detected: 1 }, // Placeholder since we don't get tags from this API
-            thumbnailUrl: thumbnailUrl, // Original thumbnail URL
+            thumbnailUrl: thumbnailUrl, // Original thumbnail URL input by user
             fullUrl: fullImageUrl, // Keep full pre-signed URL for access
             downloadUrl: fullImageUrl, // Same as fullUrl for thumbnail search
             s3Key: cleanUrl.split("/").slice(-2).join("/"), // Extract relative path from clean URL
@@ -747,6 +759,8 @@ async function searchByThumbnailUrl() {
         searchType: "thumbnail",
         searchParams: { thumbnailUrl: thumbnailUrl },
       };
+
+      debugLog("Display results:", displayResults);
 
       displaySearchResults(displayResults, "thumbnail");
       showNotification(
@@ -768,6 +782,7 @@ async function searchByThumbnailUrl() {
       );
     }
   } catch (error) {
+    console.error("Thumbnail search error:", error);
     showNotification("Search failed: " + error.message, "error");
     hideSearchResults();
   }
