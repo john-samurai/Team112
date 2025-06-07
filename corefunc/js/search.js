@@ -1,5 +1,4 @@
-// Enhanced Search.js with comprehensive debugging and fixes
-
+// Complete Search & Management functionality with all missing functions
 let selectedFiles = [];
 let currentSearchResults = [];
 let searchUploadedFile = null;
@@ -11,7 +10,6 @@ const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
 // Configuration for search endpoints
 const SEARCH_API_CONFIG = {
-  // UPDATED: Use search-s for BOTH species listing AND search functionality
   getSpeciesEndpoint:
     "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/birdtag/search-s",
   searchByTagsEndpoint:
@@ -19,7 +17,7 @@ const SEARCH_API_CONFIG = {
   thumbnailSearchEndpoint:
     "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/birdtag/search-t",
 
-  // Future endpoints (keep as is)
+  // Future endpoints
   searchByFileEndpoint:
     "https://your-api-id.execute-api.region.amazonaws.com/dev/birdtag/search-file",
   addTagsEndpoint:
@@ -36,6 +34,49 @@ function debugLog(message, data = null) {
   if (data) {
     console.log(`[DEBUG DATA]`, data);
   }
+}
+
+// Show notification function
+function showNotification(message, type = "info") {
+  const notification = document.createElement("div");
+  notification.className = `notification-toast ${type}`;
+  notification.textContent = message;
+
+  notification.style.cssText = `
+    position: fixed;
+    top: 2rem;
+    right: 2rem;
+    background: ${
+      type === "success" ? "#10b981" : type === "error" ? "#ef4444" : "#2563eb"
+    };
+    color: white;
+    padding: 1rem 1.5rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 2001;
+    font-weight: 500;
+    opacity: 0;
+    transform: translateX(100%);
+    transition: all 0.3s ease;
+    max-width: 300px;
+  `;
+
+  document.body.appendChild(notification);
+
+  setTimeout(() => {
+    notification.style.opacity = "1";
+    notification.style.transform = "translateX(0)";
+  }, 100);
+
+  setTimeout(() => {
+    notification.style.opacity = "0";
+    notification.style.transform = "translateX(100%)";
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 300);
+  }, 4000);
 }
 
 // Enhanced error handling
@@ -132,7 +173,7 @@ async function getSpeciesList() {
   }
 }
 
-// Enhanced searchByTags function with comprehensive debugging
+// Main search function - FIXED to handle your API response format
 async function searchByTags() {
   debugLog("=== Starting Search by Tags ===");
 
@@ -191,100 +232,39 @@ async function searchByTags() {
       const data = await response.json();
       debugLog("Raw API response data", data);
 
-      // Enhanced data parsing to handle different response structures
-      let links = [];
+      // YOUR API RETURNS: {"results": [...], "total": 2}
+      // Extract the results array
+      const results = data.results || [];
+      debugLog(`Found ${results.length} results in API response`, results);
 
-      if (data.links) {
-        links = data.links;
-      } else if (data.body) {
-        try {
-          const parsedBody = JSON.parse(data.body);
-          links = parsedBody.links || [];
-        } catch (e) {
-          debugLog("Could not parse body as JSON", e);
-        }
-      } else if (data.Items) {
-        // Handle DynamoDB direct response format
-        links = data.Items.map(
-          (item) => item.s3_url || item.url || item.link
-        ).filter(Boolean);
-      } else if (Array.isArray(data)) {
-        links = data;
-      }
-
-      debugLog(`Extracted ${links.length} links from response`, links);
-
-      if (links.length === 0) {
-        debugLog("No links found in response - showing no results");
+      if (results.length === 0) {
+        debugLog("No results found in response - showing no results");
         displayNoResults(selectedSpecies);
         return;
       }
 
       // Convert API response to displayable format
+      // Your API already provides the perfect format!
       const searchResults = {
-        results: await Promise.all(
-          links.map(async (url, index) => {
-            debugLog(`Processing URL ${index + 1}`, url);
+        results: results.map((item, index) => {
+          debugLog(`Processing result item ${index + 1}`, item);
 
-            // Extract filename from URL
-            const urlParts = url.split("?")[0]; // Remove query parameters
-            const filename = urlParts.split("/").pop();
-
-            debugLog(`Extracted filename: ${filename}`);
-
-            // Determine file type and create appropriate URLs
-            const isThumbUrl = filename && filename.startsWith("thumb_");
-            let thumbnailUrl = null;
-            let fullUrl = url;
-
-            if (isThumbUrl) {
-              // This is a thumbnail URL, we need to get the full-size URL
-              thumbnailUrl = url;
-
-              // Generate full-size URL by removing 'thumb_' prefix
-              const fullFilename = filename.replace("thumb_", "");
-              const fullUrlBase = url
-                .split("?")[0]
-                .replace(filename, fullFilename);
-
-              // For now, we'll use the same URL structure
-              const queryString = url.split("?")[1];
-              fullUrl = queryString
-                ? `${fullUrlBase}?${queryString}`
-                : fullUrlBase;
-            }
-
-            // Determine file type more accurately
-            let fileType = "image"; // default
-            if (filename) {
-              const extension = filename.split(".").pop().toLowerCase();
-              if (["mp4", "avi", "mov", "wmv"].includes(extension)) {
-                fileType = "video";
-              } else if (["mp3", "wav", "aac", "ogg"].includes(extension)) {
-                fileType = "audio";
-              }
-            }
-
-            const resultItem = {
-              id: `search-result-${index}`,
-              filename: filename || `file-${index}`,
-              shortenedPath: filename || `file-${index}`,
-              type: fileType,
-              tags: selectedSpecies.reduce((acc, species) => {
-                acc[species] = 1; // Default count of 1 for each searched species
-                return acc;
-              }, {}),
-              thumbnailUrl: thumbnailUrl,
-              fullUrl: fullUrl,
-              presignedUrl: url, // Store the original pre-signed URL
-              s3Key: urlParts.replace(/^https?:\/\/[^\/]+\//, ""),
-            };
-
-            debugLog(`Created result item ${index + 1}`, resultItem);
-            return resultItem;
-          })
-        ),
-        total: links.length,
+          return {
+            id: `search-result-${index}`,
+            filename: item.filename || `file-${index}`,
+            shortenedPath: item.filename || `file-${index}`,
+            type: item.file_type || "image",
+            tags: selectedSpecies.reduce((acc, species) => {
+              acc[species] = 1; // Default count of 1 for each searched species
+              return acc;
+            }, {}),
+            thumbnailUrl: item.thumbnail_url,
+            fullUrl: item.full_url,
+            presignedUrl: item.thumbnail_url, // Use thumbnail URL as presigned URL
+            s3Key: item.filename || `file-${index}`,
+          };
+        }),
+        total: data.total || results.length,
         searchType: "tags",
         searchParams: { species: selectedSpecies },
       };
@@ -345,7 +325,25 @@ function displayNoResults(selectedSpecies) {
   clearSelection();
 }
 
-// Enhanced displaySearchResults function
+// Show search loading
+function showSearchLoading() {
+  const resultsContainer = document.getElementById("searchResults");
+  resultsContainer.innerHTML = `
+    <div class="search-loading">
+      <div class="loading-spinner"></div>
+      <p>Searching...</p>
+    </div>
+  `;
+  document.getElementById("searchResultsSection").style.display = "block";
+}
+
+// Hide search results
+function hideSearchResults() {
+  document.getElementById("searchResultsSection").style.display = "none";
+  clearSelection();
+}
+
+// Display search results
 function displaySearchResults(results, searchType) {
   debugLog("=== Displaying Search Results ===", results);
 
@@ -389,57 +387,300 @@ function displaySearchResults(results, searchType) {
   debugLog("=== Results Display Complete ===");
 }
 
-// Add a test function to help debug API connectivity
-async function testAPIConnectivity() {
-  try {
-    debugLog("=== Testing API Connectivity ===");
+// Create result card
+function createResultCard(file, searchType) {
+  const tagsDisplay = Object.entries(file.tags)
+    .map(([species, count]) => `${species} ×${count}`)
+    .join(", ");
 
-    const authToken = getAuthenticationToken();
-    debugLog("Auth token available:", !!authToken);
+  // Create thumbnail content based on file type
+  let thumbnailContent;
+  if (file.type === "image" && file.thumbnailUrl) {
+    // Show thumbnail image for images
+    thumbnailContent = `<img src="${file.thumbnailUrl}" alt="${file.filename}" class="result-thumbnail">`;
+  } else if (file.type === "video") {
+    // Show video icon for videos
+    thumbnailContent = `<div class="result-thumbnail result-icon">${getFileTypeIcon(
+      "video"
+    )}</div>`;
+  } else if (file.type === "audio") {
+    // Show audio icon for audio files
+    thumbnailContent = `<div class="result-thumbnail result-icon">${getFileTypeIcon(
+      "audio"
+    )}</div>`;
+  } else {
+    // Default to image icon
+    thumbnailContent = `<div class="result-thumbnail result-icon">${getFileTypeIcon(
+      "image"
+    )}</div>`;
+  }
 
-    if (!authToken) {
-      debugLog("No auth token - user may not be signed in");
-      return;
-    }
+  // Create shortened path of the full pre-signed URL
+  const fullUrl = file.fullUrl || file.presignedUrl || "";
+  const shortenedPath = shortenUrl(fullUrl);
 
-    // Test the search endpoint with a simple request
-    const testUrl = `${SEARCH_API_CONFIG.searchByTagsEndpoint}?tag1=hawk`;
-    debugLog("Testing URL:", testUrl);
+  // Get action buttons based on file type
+  const actionButtons = getActionButtons(file);
 
-    const response = await fetch(testUrl, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${authToken}`,
-        "Content-Type": "application/json",
-      },
-    });
+  return `
+    <div class="result-card" data-file-id="${file.id}">
+      <input type="checkbox" class="result-checkbox" 
+             onchange="toggleFileSelection(this, '${file.id}')">
+      
+      ${thumbnailContent}
+      
+      <div class="result-content">
+        <div class="result-filename">${file.filename}</div>
+        <div class="result-tags">${tagsDisplay}</div>
+        <div class="result-file-type">${file.type.toUpperCase()}</div>
+        
+        <!-- Shortened path of full pre-signed URL -->
+        <div class="result-url-section">
+          <div class="shortened-path" title="${fullUrl}">
+            ${shortenedPath}
+          </div>
+          <button class="btn-full-url" onclick="showFullPresignedUrl('${
+            file.id
+          }')">
+            Full Pre-Signed URL
+          </button>
+        </div>
+        
+        <div class="result-actions">
+          ${actionButtons}
+        </div>
+      </div>
+    </div>
+  `;
+}
 
-    debugLog("Test response status:", response.status);
-    debugLog(
-      "Test response headers:",
-      Object.fromEntries(response.headers.entries())
-    );
-
-    const responseText = await response.text();
-    debugLog("Test response text:", responseText);
-
-    try {
-      const responseJson = JSON.parse(responseText);
-      debugLog("Test response JSON:", responseJson);
-    } catch (e) {
-      debugLog("Response is not valid JSON");
-    }
-  } catch (error) {
-    debugLog("API connectivity test failed:", error);
+// Get file type icon
+function getFileTypeIcon(type) {
+  switch (type) {
+    case "image":
+      return "🖼️";
+    case "video":
+      return "🎥";
+    case "audio":
+      return "🎵";
+    default:
+      return "📄";
   }
 }
 
-// Add the test function to window for manual debugging
-window.testAPIConnectivity = testAPIConnectivity;
-window.debugSearchByTags = searchByTags;
+// Helper function to shorten URLs for display
+function shortenUrl(url, maxLength = 60) {
+  if (!url) return "No URL available";
 
-// Rest of your existing functions remain the same...
-// (I'll include the key ones that might need fixes)
+  if (url.length <= maxLength) {
+    return url;
+  }
+
+  // Split at the filename part for better readability
+  const urlParts = url.split("?");
+  const baseUrl = urlParts[0];
+  const queryString = urlParts[1];
+
+  if (baseUrl.length <= maxLength) {
+    return `${baseUrl}?...`;
+  }
+
+  // Show beginning and end of URL
+  const start = url.substring(0, Math.floor(maxLength / 2));
+  const end = url.substring(url.length - Math.floor(maxLength / 2));
+  return `${start}...${end}`;
+}
+
+// Get action buttons
+function getActionButtons(file) {
+  if (file.type === "image") {
+    return `
+      <button class="btn-action btn-view-full" onclick="viewFullSizeImage('${file.id}')">View Full Size</button>
+      <button class="btn-action" onclick="downloadFile('${file.id}')">Download</button>
+    `;
+  } else if (file.type === "video") {
+    return `
+      <button class="btn-action" onclick="playFile('${file.id}')">Play</button>
+      <button class="btn-action" onclick="downloadFile('${file.id}')">Download</button>
+    `;
+  } else if (file.type === "audio") {
+    return `
+      <button class="btn-action" onclick="playFile('${file.id}')">Play</button>
+      <button class="btn-action" onclick="downloadFile('${file.id}')">Download</button>
+    `;
+  }
+  return `<button class="btn-action" onclick="downloadFile('${file.id}')">Download</button>`;
+}
+
+// File actions
+function viewFile(fileId) {
+  const file = currentSearchResults.find((f) => f.id === fileId);
+  if (file && file.fullUrl) {
+    window.open(file.fullUrl, "_blank");
+  } else {
+    showNotification("File not found", "error");
+  }
+}
+
+// Updated viewFullSizeImage function - opens FULL SIZE image, not thumbnail
+function viewFullSizeImage(fileId) {
+  const file = currentSearchResults.find((f) => f.id === fileId);
+  if (file && file.fullUrl) {
+    // Open the FULL SIZE image (full_url), not the thumbnail
+    window.open(file.fullUrl, "_blank");
+  } else {
+    showNotification("Full size image not found", "error");
+  }
+}
+
+function playFile(fileId) {
+  const file = currentSearchResults.find((f) => f.id === fileId);
+  if (file && file.fullUrl) {
+    window.open(file.fullUrl, "_blank");
+  } else {
+    showNotification("File not found", "error");
+  }
+}
+
+function downloadFile(fileId) {
+  const file = currentSearchResults.find((f) => f.id === fileId);
+  if (file && file.fullUrl) {
+    const link = document.createElement("a");
+    link.href = file.fullUrl;
+    link.download = file.filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showNotification(`Downloading ${file.filename}`, "success");
+  } else {
+    showNotification("File not found", "error");
+  }
+}
+
+// Enhanced showFullPresignedUrl function
+function showFullPresignedUrl(fileId) {
+  const file = currentSearchResults.find((f) => f.id === fileId);
+
+  if (!file) {
+    showNotification("File not found", "error");
+    return;
+  }
+
+  const fullUrl = file.fullUrl || file.presignedUrl || "No URL available";
+
+  // Create a modal with the full URL
+  const modal = document.createElement("div");
+  modal.className = "presigned-url-modal";
+  modal.innerHTML = `
+    <div class="modal-content">
+      <h3>Full Pre-Signed URL</h3>
+      <p><strong>File:</strong> ${file.filename}</p>
+      <div class="url-display">
+        <textarea readonly class="full-url-textarea">${fullUrl}</textarea>
+      </div>
+      <div class="modal-buttons">
+        <button class="btn-copy" onclick="copyToClipboard('${fullUrl.replace(
+          /'/g,
+          "\\'"
+        )}')">📋 Copy URL</button>
+        <button class="btn-close" onclick="this.closest('.presigned-url-modal').remove()">Close</button>
+      </div>
+    </div>
+  `;
+
+  // Style the modal
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+  `;
+
+  const modalContent = modal.querySelector(".modal-content");
+  modalContent.style.cssText = `
+    background: white;
+    padding: 2rem;
+    border-radius: 0.5rem;
+    max-width: 90%;
+    max-height: 80%;
+    min-width: 600px;
+  `;
+
+  const textarea = modal.querySelector(".full-url-textarea");
+  textarea.style.cssText = `
+    width: 100%;
+    height: 200px;
+    margin: 1rem 0;
+    font-family: monospace;
+    font-size: 0.8rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 0.5rem;
+    resize: vertical;
+  `;
+
+  const buttons = modal.querySelectorAll("button");
+  buttons.forEach((button) => {
+    button.style.cssText = `
+      padding: 0.5rem 1rem;
+      margin: 0 0.5rem;
+      border: none;
+      border-radius: 0.25rem;
+      cursor: pointer;
+      font-weight: 500;
+    `;
+  });
+
+  const copyBtn = modal.querySelector(".btn-copy");
+  copyBtn.style.backgroundColor = "#2563eb";
+  copyBtn.style.color = "white";
+
+  const closeBtn = modal.querySelector(".btn-close");
+  closeBtn.style.backgroundColor = "#6b7280";
+  closeBtn.style.color = "white";
+
+  document.body.appendChild(modal);
+}
+
+// Copy URL to clipboard
+function copyToClipboard(url) {
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard
+      .writeText(url)
+      .then(() => {
+        showNotification("Full URL copied to clipboard!", "success");
+      })
+      .catch((err) => {
+        console.error("Failed to copy: ", err);
+        showNotification("Failed to copy URL", "error");
+      });
+  } else {
+    const textArea = document.createElement("textarea");
+    textArea.value = url;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
+    try {
+      document.execCommand("copy");
+      showNotification("Full URL copied to clipboard!", "success");
+    } catch (err) {
+      console.error("Failed to copy: ", err);
+      showNotification("Failed to copy URL", "error");
+    } finally {
+      document.body.removeChild(textArea);
+    }
+  }
+}
 
 // Populate species select elements
 async function populateSpeciesSelects() {
@@ -491,6 +732,30 @@ async function populateSpeciesSelects() {
   );
 }
 
+// Show specific search form
+function showSearchForm(searchType) {
+  // Hide all search forms
+  document.querySelectorAll(".search-form").forEach((form) => {
+    form.style.display = "none";
+  });
+
+  // Show selected form
+  const selectedForm = document.getElementById(`${searchType}-form`);
+  if (selectedForm) {
+    selectedForm.style.display = "block";
+
+    // Only populate species selects for forms that need them
+    const formsNeedingSpecies = ["tags-counts", "tags"];
+    if (formsNeedingSpecies.includes(searchType)) {
+      populateSpeciesSelects();
+    }
+  }
+
+  // Hide results when switching forms
+  hideSearchResults();
+  clearSelection();
+}
+
 // Enhanced authentication token getter
 function getAuthenticationToken() {
   const token = sessionStorage.getItem("idToken") || "";
@@ -498,7 +763,126 @@ function getAuthenticationToken() {
   return token;
 }
 
-// Enhanced initialization
+// File selection management
+function toggleFileSelection(checkbox, fileId) {
+  if (checkbox.checked) {
+    if (!selectedFiles.includes(fileId)) {
+      selectedFiles.push(fileId);
+    }
+  } else {
+    selectedFiles = selectedFiles.filter((id) => id !== fileId);
+  }
+  updateFloatingActionBar();
+}
+
+function updateFloatingActionBar() {
+  const actionBar = document.getElementById("floatingActionBar");
+  if (selectedFiles.length > 0) {
+    actionBar.classList.remove("hidden");
+    document.getElementById(
+      "selectedCount"
+    ).textContent = `${selectedFiles.length} files selected`;
+  } else {
+    actionBar.classList.add("hidden");
+  }
+}
+
+function clearSelection() {
+  selectedFiles = [];
+  document
+    .querySelectorAll(".result-checkbox")
+    .forEach((cb) => (cb.checked = false));
+  updateFloatingActionBar();
+}
+
+// Form functions
+function clearTagsForm() {
+  const speciesSelect = document.getElementById("speciesSelect");
+  if (speciesSelect) {
+    speciesSelect.selectedIndex = -1;
+  }
+  hideSearchResults();
+}
+
+// Placeholder functions for not yet implemented features
+function initializeSearchFileUpload() {
+  debugLog("Search file upload functionality - placeholder");
+}
+
+function initializeDeleteConfirmation() {
+  debugLog("Delete confirmation functionality - placeholder");
+}
+
+function searchByTagsAndCounts() {
+  showNotification("Tags & Counts search not yet implemented", "info");
+}
+
+function searchByThumbnailUrl() {
+  showNotification("Thumbnail URL search not yet implemented", "info");
+}
+
+function searchByFileUpload() {
+  showNotification("File upload search not yet implemented", "info");
+}
+
+// Placeholder modal functions
+function showAddTagsModal() {
+  showNotification("Add tags functionality not yet implemented", "info");
+}
+
+function showRemoveTagsModal() {
+  showNotification("Remove tags functionality not yet implemented", "info");
+}
+
+function showDeleteFilesModal() {
+  showNotification("Delete files functionality not yet implemented", "info");
+}
+
+// API connectivity test
+async function testAPIConnectivity() {
+  try {
+    debugLog("=== Testing API Connectivity ===");
+
+    const authToken = getAuthenticationToken();
+    debugLog("Auth token available:", !!authToken);
+
+    if (!authToken) {
+      debugLog("No auth token - user may not be signed in");
+      return;
+    }
+
+    const testUrl = `${SEARCH_API_CONFIG.searchByTagsEndpoint}?tag1=hawk`;
+    debugLog("Testing URL:", testUrl);
+
+    const response = await fetch(testUrl, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    debugLog("Test response status:", response.status);
+    debugLog(
+      "Test response headers:",
+      Object.fromEntries(response.headers.entries())
+    );
+
+    const responseText = await response.text();
+    debugLog("Test response text:", responseText);
+
+    try {
+      const responseJson = JSON.parse(responseText);
+      debugLog("Test response JSON:", responseJson);
+    } catch (e) {
+      debugLog("Response is not valid JSON");
+    }
+  } catch (error) {
+    debugLog("API connectivity test failed:", error);
+  }
+}
+
+// Initialize search functionality
 function initializeSearch() {
   debugLog("=== Initializing Search Functionality ===");
 
@@ -520,27 +904,22 @@ function initializeSearch() {
     });
   });
 
-  // Initialize file upload for search
+  // Initialize placeholder functions
   initializeSearchFileUpload();
-
-  // Initialize delete confirmation input
   initializeDeleteConfirmation();
 
   // Load species on page load
   populateSpeciesSelects();
 
-  // Show the first form by default
-  showSearchForm("tags-counts");
+  // Show the first form by default - but start with tags form since it works
+  showSearchForm("tags");
 
   debugLog("Search initialization complete");
-
-  // Add debugging helpers to console
-  console.log("Debug helpers available:");
-  console.log("- testAPIConnectivity() - Test API connection");
-  console.log("- debugSearchByTags() - Run search with full logging");
 }
 
-// [Keep all your other existing functions like createResultCard, viewFile, etc.]
+// Add debugging helpers to window
+window.testAPIConnectivity = testAPIConnectivity;
+window.debugSearchByTags = searchByTags;
 
 // Initialize search functionality on page load
 document.addEventListener("DOMContentLoaded", () => {
