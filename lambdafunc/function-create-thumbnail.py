@@ -42,9 +42,10 @@ def lambda_handler(event, context):
             thumb_buffer.seek(0)
 
             # Prepare thumbnail path
-            user_id = 'temp-user-123'       # temporary hardcoded
+            user_id = key.split('/')[0]
             filename = os.path.basename(key)
             thumb_key = f"{user_id}/thumb_{filename}"
+            file_id = os.path.splitext(filename)[0]
 
             # Upload thumbnail to S3
             s3.put_object(
@@ -56,17 +57,18 @@ def lambda_handler(event, context):
 
             # Generate public URL (assumes bucket allows access or is using presigned URLs)
             thumbnail_url = f"https://{bucket}.s3.amazonaws.com/{thumb_key}"
+            file_url = f"https://{bucket}.s3.amazonaws.com/{key}"
 
             # Write metadata to DynamoDB
-            # item = {
-            #     'id': str(uuid.uuid4()),
-            #     'user_id': str(uuid.uuid4()),
-            #     'file_url': key,
-            #     'file_type' : 'image',
-            #     'thumbnail_url': thumbnail_url,
-            #     'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            # }
-            # table.put_item(Item=item)
+            item = {
+                'id': file_id,
+                'user_id': user_id,
+                'file_url': file_url,
+                'file_type' : 'image',
+                'thumb_url': thumbnail_url,
+                'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            table.put_item(Item=item)
             print(f"Thumbnail created and saved: {thumbnail_url}")
 
         except Exception as e:
