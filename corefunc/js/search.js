@@ -99,12 +99,18 @@ async function getSpeciesList() {
 
 // Populate species select elements
 async function populateSpeciesSelects() {
-  const speciesList = await getSpeciesList();
-
   // Find all species select elements
   const selectElements = document.querySelectorAll(
     ".tag-select, .species-select"
   );
+
+  // If no species select elements found, don't make API call
+  if (selectElements.length === 0) {
+    console.log("No species select elements found - skipping species loading");
+    return;
+  }
+
+  const speciesList = await getSpeciesList();
 
   selectElements.forEach((select) => {
     // Save current selection
@@ -376,8 +382,11 @@ function showSearchForm(searchType) {
   if (selectedForm) {
     selectedForm.style.display = "block";
 
-    // Ensure species selects are populated when showing form
-    populateSpeciesSelects();
+    // Only populate species selects for forms that need them
+    const formsNeedingSpecies = ["tags-counts", "tags"];
+    if (formsNeedingSpecies.includes(searchType)) {
+      populateSpeciesSelects();
+    }
   }
 
   // Hide results when switching forms
