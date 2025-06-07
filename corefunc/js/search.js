@@ -588,39 +588,59 @@ function displaySearchResults(results, searchType) {
   clearSelection();
 }
 
-// NEW: Special result card for thumbnail search
+// NEW: Special result card for thumbnail search (without checkbox)
 function createThumbnailResultCard(file) {
+  // Create a shortened display version of the full-size URL
+  const fullUrl = file.fullUrl;
+  const shortUrl =
+    fullUrl.length > 80
+      ? fullUrl.substring(0, 60) +
+        "..." +
+        fullUrl.substring(fullUrl.length - 20)
+      : fullUrl;
+
   return `
     <div class="result-card thumbnail-result-card" data-file-id="${file.id}">
-      <input type="checkbox" class="result-checkbox" 
-             onchange="toggleFileSelection(this, '${file.id}')">
+      <!-- Removed checkbox for thumbnail search -->
       
       <!-- Large Preview Display -->
       <div class="thumbnail-result-preview">
         <img src="${file.fullUrl}" alt="${file.filename}" 
              class="large-image-preview" 
-             onerror="this.src='${file.thumbnailUrl}'; this.alt='Image preview failed';">
+             onerror="this.src='${
+               file.thumbnailUrl
+             }'; this.alt='Image preview failed';">
       </div>
       
       <div class="thumbnail-result-info">
-        <div class="result-filename"><strong>Filename:</strong> ${file.filename}</div>
+        <div class="result-filename"><strong>Filename:</strong> ${
+          file.filename
+        }</div>
         <div class="result-urls">
           <div class="url-item">
             <strong>Thumbnail URL:</strong> 
-            <a href="${file.thumbnailUrl}" target="_blank" class="url-link">
-              ${file.thumbnailUrl}
-            </a>
+            <span class="url-text">${file.thumbnailUrl}</span>
           </div>
           <div class="url-item">
-            <strong>Full-size URL:</strong> 
-            <a href="${file.fullUrl}" target="_blank" class="url-link">
-              ${file.fullUrl}
+            <strong>Full-size URL (Pre-signed URL):</strong> 
+            <a href="${file.fullUrl}" target="_blank" class="url-link" title="${
+    file.fullUrl
+  }">
+              ${shortUrl}
             </a>
+            <button class="btn-copy-url" onclick="copyToClipboard('${file.fullUrl.replace(
+              /'/g,
+              "\\'"
+            )}')">📋 Copy Full URL</button>
           </div>
         </div>
         <div class="result-actions">
-          <button class="btn-action" onclick="viewFile('${file.id}')">View Full Size</button>
-          <button class="btn-action" onclick="downloadFile('${file.id}')">Download</button>
+          <button class="btn-action" onclick="viewFile('${
+            file.id
+          }')">View Full Size</button>
+          <button class="btn-action" onclick="downloadFile('${
+            file.id
+          }')">Download</button>
         </div>
       </div>
     </div>
@@ -1071,6 +1091,42 @@ function showNotification(message, type = "info") {
 
 function getAuthenticationToken() {
   return sessionStorage.getItem("idToken") || "";
+}
+
+// NEW: Copy URL to clipboard function
+function copyToClipboard(url) {
+  if (navigator.clipboard && window.isSecureContext) {
+    // Use modern clipboard API
+    navigator.clipboard
+      .writeText(url)
+      .then(() => {
+        showNotification("Full URL copied to clipboard!", "success");
+      })
+      .catch((err) => {
+        console.error("Failed to copy: ", err);
+        showNotification("Failed to copy URL", "error");
+      });
+  } else {
+    // Fallback for older browsers
+    const textArea = document.createElement("textarea");
+    textArea.value = url;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
+    try {
+      document.execCommand("copy");
+      showNotification("Full URL copied to clipboard!", "success");
+    } catch (err) {
+      console.error("Failed to copy: ", err);
+      showNotification("Failed to copy URL", "error");
+    } finally {
+      document.body.removeChild(textArea);
+    }
+  }
 }
 
 // FIXED SIGN OUT FUNCTIONALITY
