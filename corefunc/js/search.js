@@ -539,7 +539,7 @@ function playFile(fileId) {
   }
 }
 
-// Enhanced downloadFile function - uses pre-signed URLs for blocked public access
+// Enhanced downloadFile function - forces actual file download, not opening in tab
 async function downloadFile(fileId) {
   debugLog("=== Download File Function ===");
 
@@ -551,8 +551,8 @@ async function downloadFile(fileId) {
     return;
   }
 
-  // Use the FULL pre-signed URL (with auth parameters) since public access is blocked
-  const downloadUrl = file.fullUrl; // This should be the pre-signed URL with auth parameters
+  // Use the FULL pre-signed URL (with auth parameters)
+  const downloadUrl = file.fullUrl;
   debugLog("Download URL (pre-signed)", downloadUrl);
 
   if (!downloadUrl) {
@@ -572,45 +572,50 @@ async function downloadFile(fileId) {
     // Show immediate feedback
     showNotification(`Starting download: ${downloadFilename}`, "info");
 
-    // Method 1: Fetch + blob approach using pre-signed URL
+    // FORCE DOWNLOAD using fetch + blob - this bypasses S3's content-disposition headers
     try {
-      debugLog("Attempting fetch + blob download with pre-signed URL");
+      debugLog("Fetching file data for forced download");
 
       const response = await fetch(downloadUrl, {
         method: "GET",
-        mode: "cors", // Important for S3 pre-signed URLs
+        mode: "cors",
         headers: {
           Accept: "image/*,*/*",
         },
       });
 
       debugLog("Fetch response status:", response.status);
-      debugLog(
-        "Fetch response headers:",
-        Object.fromEntries(response.headers.entries())
-      );
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
+      // Get the actual file data as blob
       const blob = await response.blob();
       debugLog("Blob created successfully", {
         size: blob.size,
         type: blob.type,
       });
 
-      // Create blob URL and download
+      // Create a blob URL that we control
       const blobUrl = window.URL.createObjectURL(blob);
+      debugLog("Blob URL created:", blobUrl);
 
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = downloadFilename;
-      link.style.display = "none";
+      // Create download link that FORCES download behavior
+      const downloadLink = document.createElement("a");
+      downloadLink.href = blobUrl;
+      downloadLink.download = downloadFilename; // This forces download instead of navigation
+      downloadLink.style.display = "none";
+      downloadLink.style.visibility = "hidden";
 
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // Add to DOM, click immediately, then remove
+      document.body.appendChild(downloadLink);
+
+      // Force the download by clicking the link
+      downloadLink.click();
+
+      // Clean up immediately
+      document.body.removeChild(downloadLink);
 
       // Clean up blob URL after a short delay
       setTimeout(() => {
@@ -618,56 +623,86 @@ async function downloadFile(fileId) {
         debugLog("Blob URL cleaned up");
       }, 1000);
 
-      showNotification(`Download completed: ${downloadFilename}`, "success");
-      debugLog("Fetch + blob download successful");
+      showNotification(`Download started: ${downloadFilename}`, "success");
+      debugLog("Forced download successful using blob method");
     } catch (fetchError) {
-      debugLog("Fetch + blob method failed", fetchError);
+      debugLog("Fetch method failed, trying alternative approach", fetchError);
 
-      // Method 2: Direct link download with pre-signed URL
-      debugLog("Attempting direct link download with pre-signed URL");
+      // Alternative approach: Try to force download using iframe
+      try {
+        debugLog("Attempting iframe download method");
 
-      const link = document.createElement("a");
-      link.href = downloadUrl; // Use pre-signed URL directly
-      link.download = downloadFilename;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      link.style.display = "none";
+        // Create a hidden iframe to trigger download
+        const iframe = document.createElement("iframe");
+        iframe.style.display = "none";
+        iframe.style.visibility = "hidden";
+        iframe.src = downloadUrl;
 
-      // Force download by setting Content-Disposition header simulation
-      link.setAttribute("download", downloadFilename);
+        document.body.appendChild(iframe);
 
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+        // Remove iframe after download starts
+        setTimeout(() => {
+          if (iframe.parentNode) {
+            document.body.removeChild(iframe);
+          }
+        }, 3000);
 
-      showNotification(`Download initiated: ${downloadFilename}`, "success");
-      debugLog("Direct link download attempted with pre-signed URL");
+        showNotification(`Download initiated: ${downloadFilename}`, "success");
+        debugLog("Iframe download method attempted");
+      } catch (iframeError) {
+        debugLog("Iframe method also failed", iframeError);
+
+        // Last resort: Use programmatic download with forced headers
+        try {
+          debugLog("Attempting programmatic download");
+
+          const link = document.createElement("a");
+          link.href = downloadUrl;
+          link.download = downloadFilename;
+          link.setAttribute("download", downloadFilename); // Force download attribute
+          link.style.display = "none";
+
+          // Try to prevent opening in new tab
+          link.addEventListener("click", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Create a temporary URL that forces download
+            const tempLink = document.createElement("a");
+            tempLink.href = downloadUrl;
+            tempLink.download = downloadFilename;
+            tempLink.click();
+          });
+
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+
+          showNotification(
+            `Download attempted: ${downloadFilename}. If it opens in a tab, right-click and "Save As"`,
+            "info"
+          );
+          debugLog("Programmatic download attempted");
+        } catch (programmaticError) {
+          debugLog("All download methods failed", programmaticError);
+          showNotification(
+            "Download failed. The file will open in a new tab - please right-click and 'Save image as...'",
+            "error"
+          );
+
+          // Final fallback - open in new tab but warn user
+          window.open(downloadUrl, "_blank");
+        }
+      }
     }
   } catch (error) {
-    console.error("Download failed:", error);
-    debugLog("Download failed", error);
-
-    // Final fallback: Open pre-signed URL in new tab
-    try {
-      const newWindow = window.open(downloadUrl, "_blank");
-      if (newWindow) {
-        showNotification(
-          "Opening full-size image in new tab. Right-click and select 'Save image as...' to download",
-          "info"
-        );
-      } else {
-        showNotification(
-          "Popup blocked. Please allow popups and try again, or copy the URL manually.",
-          "error"
-        );
-      }
-    } catch (fallbackError) {
-      console.error("Even fallback failed:", fallbackError);
-      showNotification(
-        "Download failed. The file might not be accessible due to permissions.",
-        "error"
-      );
-    }
+    console.error("Download completely failed:", error);
+    debugLog("Download completely failed", error);
+    showNotification(
+      "Download failed due to browser security restrictions. Opening in new tab instead.",
+      "error"
+    );
+    window.open(downloadUrl, "_blank");
   }
 }
 
