@@ -83,15 +83,27 @@ const SEARCH_API_CONFIG = {
 
 // Initialize search functionality
 function initializeSearch() {
+  console.log("Initializing search functionality...");
+  
   const searchTabs = document.querySelectorAll(".sub-nav-links a");
-  searchTabs.forEach((tab) => {
+  console.log("Found search tabs:", searchTabs.length);
+  
+  searchTabs.forEach((tab, index) => {
+    console.log(`Tab ${index}:`, tab.getAttribute("data-search-type"), tab.textContent.trim());
+    
     tab.addEventListener("click", (e) => {
       e.preventDefault();
+      console.log("Tab clicked:", tab.getAttribute("data-search-type"));
+      
+      // Remove active class from all tabs
       searchTabs.forEach((t) => t.classList.remove("active"));
+      
+      // Add active class to clicked tab
       tab.classList.add("active");
 
       // Show corresponding search form
-      showSearchForm(tab.getAttribute("data-search-type"));
+      const searchType = tab.getAttribute("data-search-type");
+      showSearchForm(searchType);
     });
   });
 
@@ -102,20 +114,32 @@ function initializeSearch() {
   initializeDeleteConfirmation();
 
   // Show the first form by default
+  console.log("Showing default search form...");
   showSearchForm("tags-counts");
 }
 
 // Show specific search form
 function showSearchForm(searchType) {
+  console.log("Showing search form:", searchType);
+  
   // Hide all search forms
-  document.querySelectorAll(".search-form").forEach((form) => {
+  const allForms = document.querySelectorAll(".search-form");
+  console.log("Found search forms:", allForms.length);
+  
+  allForms.forEach((form, index) => {
+    console.log(`Form ${index} ID:`, form.id);
     form.style.display = "none";
   });
 
   // Show selected form
   const selectedForm = document.getElementById(`${searchType}-form`);
+  console.log("Selected form:", selectedForm);
+  
   if (selectedForm) {
     selectedForm.style.display = "block";
+    console.log(`Showing form: ${searchType}-form`);
+  } else {
+    console.error(`Form not found: ${searchType}-form`);
   }
 
   // Hide results when switching forms
@@ -1161,5 +1185,32 @@ function confirmSignOut() {
 
 // Initialize search functionality on page load
 document.addEventListener("DOMContentLoaded", () => {
+  console.log("DOM Content Loaded - Initializing search...");
+  
+  // Debug: Check if elements exist
+  const searchTabs = document.querySelectorAll(".sub-nav-links a");
+  const searchForms = document.querySelectorAll(".search-form");
+  
+  console.log("Search tabs found:", searchTabs.length);
+  console.log("Search forms found:", searchForms.length);
+  
+  if (searchTabs.length === 0) {
+    console.error("No search tabs found! Check HTML structure.");
+  }
+  
+  if (searchForms.length === 0) {
+    console.error("No search forms found! Check HTML structure.");
+  }
+  
+  // Initialize search functionality
   initializeSearch();
+  
+  // Debug function - you can call this from browser console
+  window.debugSearch = function() {
+    console.log("=== Search Debug Info ===");
+    console.log("Search tabs:", document.querySelectorAll(".sub-nav-links a"));
+    console.log("Search forms:", document.querySelectorAll(".search-form"));
+    console.log("Current active tab:", document.querySelector(".sub-nav-links a.active"));
+    console.log("Visible forms:", Array.from(document.querySelectorAll(".search-form")).filter(f => f.style.display !== "none"));
+  };
 });
