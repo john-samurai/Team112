@@ -347,6 +347,7 @@
   gap: 1.5rem;
 }
 
+/* Enhanced Result Card Styling */
 .result-card {
   position: relative;
   background: var(--surface);
@@ -354,6 +355,8 @@
   border-radius: 0.75rem;
   overflow: hidden;
   transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
 }
 
 .result-card:hover {
@@ -389,47 +392,118 @@
 
 .result-content {
   padding: 1rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .result-filename {
-  font-weight: 500;
-  margin-bottom: 0.5rem;
+  font-weight: 600;
   color: var(--text-primary);
   font-size: 0.9rem;
+  line-height: 1.3;
 }
 
 .result-tags {
   color: var(--text-secondary);
   font-size: 0.875rem;
-  margin-bottom: 0.5rem;
+  font-weight: 500;
 }
 
 .result-file-type {
   color: var(--primary-color);
   font-size: 0.75rem;
-  font-weight: 500;
+  font-weight: 600;
   text-transform: uppercase;
-  margin-bottom: 1rem;
+  letter-spacing: 0.05em;
+}
+
+/* UPDATED: New URL Section Styling */
+.result-url-section {
+  margin: 0.75rem 0;
+  padding: 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.375rem;
+}
+
+.url-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.shortened-path {
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: #4b5563;
+  word-break: break-all;
+  line-height: 1.4;
+  padding: 0.5rem;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
+  max-height: 60px;
+  overflow-y: auto;
+}
+
+/* Remove old button styles */
+.btn-full-url {
+  display: none;
 }
 
 .result-actions {
   display: flex;
   gap: 0.5rem;
+  margin-top: auto;
 }
 
-.btn-action {
+.result-actions .btn-action {
   flex: 1;
   padding: 0.5rem;
   border: 1px solid var(--border);
   background: var(--background);
-  border-radius: 0.25rem;
+  border-radius: 0.375rem;
   cursor: pointer;
   font-size: 0.875rem;
+  font-weight: 500;
   transition: all 0.2s;
+  text-align: center;
 }
 
-.btn-action:hover {
+.result-actions .btn-action:hover {
   background: var(--surface);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+/* Enhanced View Full Size button styling */
+.btn-view-full {
+  background: #2563eb !important;
+  color: white !important;
+  font-weight: 600 !important;
+  border-color: #2563eb !important;
+}
+
+.btn-view-full:hover {
+  background: #1d4ed8 !important;
+  border-color: #1d4ed8 !important;
+  color: white !important;
+}
+
+/* Enhanced Download button styling */
+.result-actions .btn-action:last-child {
+  background: #059669;
+  color: white;
+  border-color: #059669;
+}
+
+.result-actions .btn-action:last-child:hover {
+  background: #047857;
+  border-color: #047857;
+  color: white;
 }
 
 /* NEW: Thumbnail Search Result Specific Styles */
@@ -936,6 +1010,11 @@
   background: var(--primary-color);
 }
 
+/* Pre-signed URL button (legacy - now hidden) */
+.btn-presigned-url {
+  display: none;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .upload-area {
@@ -1039,235 +1118,14 @@
     width: 100%;
     margin-bottom: 0.5rem;
   }
-}
 
-/* Pre-signed URL button */
-.btn-presigned-url {
-  background: #6b7280;
-  color: white;
-  border: none;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.25rem;
-  cursor: pointer;
-  font-size: 0.875rem;
-  margin-bottom: 0.5rem;
-  transition: background 0.2s;
-}
-
-.btn-presigned-url:hover {
-  background: #4b5563;
-}
-
-/* Pre-signed URL modal */
-.presigned-url-modal .modal-content h3 {
-  margin-bottom: 1rem;
-  color: #111827;
-}
-
-.presigned-url-modal .modal-buttons {
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-}
-
-.presigned-url-modal .modal-buttons button {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 0.25rem;
-  cursor: pointer;
-  font-weight: 500;
-}
-
-.presigned-url-modal .modal-buttons button:first-child {
-  background: var(--primary-color);
-  color: white;
-}
-
-.presigned-url-modal .modal-buttons button:last-child {
-  background: var(--text-secondary);
-  color: white;
-}
-
-/* Add these CSS rules to your corefunc.css file */
-
-/* Updated result card URL section */
-.result-url-section {
-  margin: 0.75rem 0;
-  padding: 0.75rem;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.375rem;
-}
-
-.shortened-path {
-  font-family: monospace;
-  font-size: 0.75rem;
-  color: #4b5563;
-  word-break: break-all;
-  line-height: 1.4;
-  margin-bottom: 0.5rem;
-  padding: 0.5rem;
-  background: white;
-  border: 1px solid #d1d5db;
-  border-radius: 0.25rem;
-  max-height: 60px;
-  overflow-y: auto;
-}
-
-.btn-full-url {
-  background: #6b7280;
-  color: white;
-  border: none;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.25rem;
-  cursor: pointer;
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition: background 0.2s;
-  width: 100%;
-}
-
-.btn-full-url:hover {
-  background: #4b5563;
-}
-
-/* Enhanced View Full Size button styling */
-.btn-view-full {
-  background: #2563eb !important;
-  color: white !important;
-  font-weight: 600 !important;
-}
-
-.btn-view-full:hover {
-  background: #1d4ed8 !important;
-}
-
-/* Modal styling for full URL display */
-.presigned-url-modal .modal-content {
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
-    0 10px 10px -5px rgba(0, 0, 0, 0.04);
-}
-
-.presigned-url-modal .modal-content h3 {
-  margin-bottom: 1rem;
-  color: #111827;
-  font-size: 1.25rem;
-  font-weight: 600;
-}
-
-.presigned-url-modal .modal-content p {
-  margin-bottom: 1rem;
-  color: #6b7280;
-}
-
-.presigned-url-modal .modal-buttons {
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-  margin-top: 1.5rem;
-}
-
-.presigned-url-modal .modal-buttons button:hover {
-  opacity: 0.9;
-  transform: translateY(-1px);
-}
-
-/* Better result card layout */
-.result-card {
-  position: relative;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  overflow: hidden;
-  transition: all 0.2s;
-  display: flex;
-  flex-direction: column;
-}
-
-.result-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.result-content {
-  padding: 1rem;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.result-filename {
-  font-weight: 600;
-  color: var(--text-primary);
-  font-size: 0.9rem;
-  line-height: 1.3;
-}
-
-.result-tags {
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  font-weight: 500;
-}
-
-.result-file-type {
-  color: var(--primary-color);
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.result-actions {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: auto;
-}
-
-.result-actions .btn-action {
-  flex: 1;
-  padding: 0.5rem;
-  border: 1px solid var(--border);
-  background: var(--background);
-  border-radius: 0.375rem;
-  cursor: pointer;
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition: all 0.2s;
-  text-align: center;
-}
-
-.result-actions .btn-action:hover {
-  background: var(--surface);
-  border-color: var(--primary-color);
-  color: var(--primary-color);
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
+  /* Mobile responsive for new URL section */
   .shortened-path {
     font-size: 0.7rem;
     max-height: 45px;
   }
 
-  .result-actions {
-    flex-direction: column;
-  }
-
-  .result-actions .btn-action {
-    width: 100%;
-  }
-
-  .presigned-url-modal .modal-content {
-    min-width: 95% !important;
-    margin: 1rem;
-  }
-
-  .presigned-url-modal .modal-buttons {
-    flex-direction: column;
-  }
-
-  .presigned-url-modal .modal-buttons button {
-    width: 100%;
+  .url-label {
+    font-size: 0.75rem;
   }
 }

@@ -415,9 +415,11 @@ function createResultCard(file, searchType) {
     )}</div>`;
   }
 
-  // Create shortened path of the full pre-signed URL
-  const fullUrl = file.fullUrl || file.presignedUrl || "";
-  const shortenedPath = shortenUrl(fullUrl);
+  // Extract Full S3 URL for thumbnail (without query parameters)
+  const thumbnailS3Url = file.thumbnailUrl
+    ? file.thumbnailUrl.split("?")[0]
+    : "No thumbnail URL available";
+  const shortenedThumbnailUrl = shortenUrl(thumbnailS3Url);
 
   // Get action buttons based on file type
   const actionButtons = getActionButtons(file);
@@ -434,16 +436,12 @@ function createResultCard(file, searchType) {
         <div class="result-tags">${tagsDisplay}</div>
         <div class="result-file-type">${file.type.toUpperCase()}</div>
         
-        <!-- Shortened path of full pre-signed URL -->
+        <!-- Full S3 URL for thumbnail -->
         <div class="result-url-section">
-          <div class="shortened-path" title="${fullUrl}">
-            ${shortenedPath}
+          <div class="url-label">Full S3 URL for thumbnail:</div>
+          <div class="shortened-path" title="${thumbnailS3Url}">
+            ${shortenedThumbnailUrl}
           </div>
-          <button class="btn-full-url" onclick="showFullPresignedUrl('${
-            file.id
-          }')">
-            Full Pre-Signed URL
-          </button>
         </div>
         
         <div class="result-actions">
@@ -542,18 +540,32 @@ function playFile(fileId) {
   }
 }
 
+// Updated downloadFile function - properly downloads the full-size file
 function downloadFile(fileId) {
   const file = currentSearchResults.find((f) => f.id === fileId);
   if (file && file.fullUrl) {
+    // Create a temporary anchor element to trigger download
     const link = document.createElement("a");
     link.href = file.fullUrl;
-    link.download = file.filename;
+
+    // Extract filename from the full URL (without query parameters)
+    let downloadFilename = file.filename;
+    if (downloadFilename.startsWith("thumb_")) {
+      // Remove "thumb_" prefix for download filename
+      downloadFilename = downloadFilename.replace("thumb_", "");
+    }
+
+    link.download = downloadFilename;
+    link.style.display = "none";
+
+    // Add to DOM, click, and remove
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showNotification(`Downloading ${file.filename}`, "success");
+
+    showNotification(`Downloading ${downloadFilename}`, "success");
   } else {
-    showNotification("File not found", "error");
+    showNotification("File not found or download URL not available", "error");
   }
 }
 
