@@ -1,14 +1,17 @@
-// Search & Management functionality
+// Search & Management functionality with Thumbnail URL Integration
 let selectedFiles = [];
 let currentSearchResults = [];
 let searchUploadedFile = null;
 
-// Configuration for search endpoints (to be added later)
+// Configuration for search endpoints - UPDATE THESE WITH YOUR ACTUAL API GATEWAY URLS
 const SEARCH_API_CONFIG = {
+  // API Gateway URL for thumbnail search (API(birdtag) ID: t89sef6460)
+  thumbnailSearchEndpoint:
+    "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/search-t",
+
+  // Other endpoints (to be configured later)
   searchByTagsEndpoint:
     "https://your-api-id.execute-api.region.amazonaws.com/dev/search-tags",
-  searchByThumbnailEndpoint:
-    "https://your-api-id.execute-api.region.amazonaws.com/dev/search-thumbnail",
   searchByFileEndpoint:
     "https://your-api-id.execute-api.region.amazonaws.com/dev/search-file",
   addTagsEndpoint:
@@ -194,6 +197,7 @@ async function searchByTags() {
   }
 }
 
+// UPDATED: Real Thumbnail URL Search Integration
 async function searchByThumbnailUrl() {
   const thumbnailUrl = document.getElementById("thumbnailUrl").value.trim();
 
@@ -202,18 +206,112 @@ async function searchByThumbnailUrl() {
     return;
   }
 
-  if (!isValidUrl(thumbnailUrl)) {
-    showNotification("Please enter a valid URL", "error");
+  // Extract filename from URL if it's a full S3 URL
+  let thumbnailFilename = thumbnailUrl;
+  if (thumbnailUrl.includes("/")) {
+    thumbnailFilename = thumbnailUrl.split("/").pop();
+  }
+
+  // Validate that it's a thumbnail (has thumb_ prefix)
+  if (!thumbnailFilename.startsWith("thumb_")) {
+    showNotification(
+      "Please enter a valid thumbnail URL (should start with 'thumb_')",
+      "error"
+    );
     return;
   }
 
   try {
     showSearchLoading();
-    const results = await performSearch("thumbnail", { url: thumbnailUrl });
-    displaySearchResults(results, "thumbnail");
+
+    console.log("Searching for thumbnail:", thumbnailFilename);
+
+    // Call the real API
+    const results = await searchThumbnailAPI(thumbnailFilename);
+
+    if (results && results.links && results.links.length > 0) {
+      // Convert API response to displayable format
+      const displayResults = {
+        results: results.links.map((fullImageUrl, index) => ({
+          id: `thumbnail-result-${index}`,
+          filename: fullImageUrl.split("/").pop(),
+          type: "image",
+          tags: { detected: 1 }, // Placeholder since we don't get tags from this API
+          thumbnailUrl: thumbnailUrl, // Original thumbnail URL
+          fullUrl: fullImageUrl,
+          s3Key: fullImageUrl.split("/").slice(-2).join("/"), // Extract relative path
+        })),
+        total: results.links.length,
+        searchType: "thumbnail",
+        searchParams: { thumbnailUrl: thumbnailUrl },
+      };
+
+      displaySearchResults(displayResults, "thumbnail");
+      showNotification(
+        `Found ${results.links.length} matching image(s)`,
+        "success"
+      );
+    } else {
+      // No results found
+      const emptyResults = {
+        results: [],
+        total: 0,
+        searchType: "thumbnail",
+        searchParams: { thumbnailUrl: thumbnailUrl },
+      };
+      displaySearchResults(emptyResults, "thumbnail");
+      showNotification(
+        "No matching full-size image found for this thumbnail",
+        "info"
+      );
+    }
   } catch (error) {
+    console.error("Thumbnail search error:", error);
     showNotification("Search failed: " + error.message, "error");
     hideSearchResults();
+  }
+}
+
+// NEW: Real API call for thumbnail search
+async function searchThumbnailAPI(thumbnailFilename) {
+  try {
+    const authToken = getAuthenticationToken();
+
+    // Build query parameters - your Lambda expects turl1, turl2, etc.
+    const queryParams = new URLSearchParams({
+      turl1: thumbnailFilename,
+    });
+
+    const apiUrl = `${
+      SEARCH_API_CONFIG.thumbnailSearchEndpoint
+    }?${queryParams.toString()}`;
+
+    console.log("Calling API:", apiUrl);
+
+    const response = await fetch(apiUrl, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        // Add auth header if needed
+        ...(authToken && { Authorization: `Bearer ${authToken}` }),
+      },
+    });
+
+    console.log("API Response status:", response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("API Error response:", errorText);
+      throw new Error(`API request failed: ${response.status} ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log("API Response data:", result);
+
+    return result;
+  } catch (error) {
+    console.error("API call failed:", error);
+    throw error;
   }
 }
 
@@ -312,39 +410,26 @@ function handleSearchFile(file) {
   showNotification(`File "${file.name}" selected for search`, "success");
 }
 
-// Search API calls (mock for now, ready for real implementation)
+// Search API calls (mock for other search types, real for thumbnail)
 async function performSearch(searchType, searchParams) {
   try {
     console.log("Performing search:", searchType, searchParams);
 
-    // Simulate API delay
+    if (searchType === "thumbnail") {
+      // This is now handled by searchByThumbnailUrl() directly
+      // Return mock data as fallback
+      return generateMockResults(searchType, searchParams);
+    }
+
+    // Simulate API delay for other search types
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    // Mock results based on search type
+    // Mock results for other search types (to be replaced with real APIs later)
     const mockResults = generateMockResults(searchType, searchParams);
 
     return mockResults;
 
-    // TODO: Replace with real API calls when backend is ready
-    /*
-    const endpoint = getSearchEndpoint(searchType);
-    const authToken = getAuthenticationToken();
-    
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken}`
-      },
-      body: JSON.stringify(searchParams)
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Search failed: ${response.status}`);
-    }
-    
-    return await response.json();
-    */
+    // TODO: Replace with real API calls when backend is ready for other search types
   } catch (error) {
     console.error("Search error:", error);
     throw error;
@@ -352,7 +437,7 @@ async function performSearch(searchType, searchParams) {
 }
 
 function generateMockResults(searchType, searchParams) {
-  // Generate mock data for demonstration
+  // Generate mock data for demonstration (except thumbnail which uses real API)
   const mockFiles = [
     {
       id: "file1",
@@ -396,11 +481,6 @@ function generateMockResults(searchType, searchParams) {
     filteredResults = mockFiles.filter((file) => {
       return searchParams.species.some((species) => file.tags[species]);
     });
-  } else if (searchType === "thumbnail") {
-    // For thumbnail search, return single result
-    filteredResults = mockFiles.filter(
-      (file) => file.thumbnailUrl === searchParams.url
-    );
   }
 
   return {
@@ -411,7 +491,7 @@ function generateMockResults(searchType, searchParams) {
   };
 }
 
-// Display search results
+// Display search results (UPDATED for thumbnail search)
 function displaySearchResults(results, searchType) {
   const resultsSection = document.getElementById("searchResultsSection");
   const resultsTitle = document.getElementById("resultsTitle");
@@ -428,17 +508,67 @@ function displaySearchResults(results, searchType) {
       </div>
     `;
   } else {
-    resultsTitle.textContent = "Search Results";
-    resultsCount.textContent = `Found ${results.total} files matching your criteria`;
+    // Special handling for thumbnail search results
+    if (searchType === "thumbnail") {
+      resultsTitle.textContent = "Full-Size Image Found";
+      resultsCount.textContent = `Found matching full-size image`;
 
-    resultsContainer.innerHTML = results.results
-      .map((file) => createResultCard(file, searchType))
-      .join("");
+      // Create a special display for thumbnail search results
+      resultsContainer.innerHTML = results.results
+        .map((file) => createThumbnailResultCard(file))
+        .join("");
+    } else {
+      resultsTitle.textContent = "Search Results";
+      resultsCount.textContent = `Found ${results.total} files matching your criteria`;
+
+      resultsContainer.innerHTML = results.results
+        .map((file) => createResultCard(file, searchType))
+        .join("");
+    }
   }
 
   currentSearchResults = results.results || [];
   resultsSection.style.display = "block";
   clearSelection();
+}
+
+// NEW: Special result card for thumbnail search
+function createThumbnailResultCard(file) {
+  return `
+    <div class="result-card thumbnail-result-card" data-file-id="${file.id}">
+      <input type="checkbox" class="result-checkbox" 
+             onchange="toggleFileSelection(this, '${file.id}')">
+      
+      <!-- Large Preview Display -->
+      <div class="thumbnail-result-preview">
+        <img src="${file.fullUrl}" alt="${file.filename}" 
+             class="large-image-preview" 
+             onerror="this.src='${file.thumbnailUrl}'; this.alt='Image preview failed';">
+      </div>
+      
+      <div class="thumbnail-result-info">
+        <div class="result-filename"><strong>Filename:</strong> ${file.filename}</div>
+        <div class="result-urls">
+          <div class="url-item">
+            <strong>Thumbnail URL:</strong> 
+            <a href="${file.thumbnailUrl}" target="_blank" class="url-link">
+              ${file.thumbnailUrl}
+            </a>
+          </div>
+          <div class="url-item">
+            <strong>Full-size URL:</strong> 
+            <a href="${file.fullUrl}" target="_blank" class="url-link">
+              ${file.fullUrl}
+            </a>
+          </div>
+        </div>
+        <div class="result-actions">
+          <button class="btn-action" onclick="viewFile('${file.id}')">View Full Size</button>
+          <button class="btn-action" onclick="downloadFile('${file.id}')">Download</button>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function createResultCard(file, searchType) {
@@ -773,23 +903,6 @@ async function performBulkOperation(operation, params) {
   await new Promise((resolve) => setTimeout(resolve, 1000));
 
   // TODO: Implement real API calls
-  /*
-  const authToken = getAuthenticationToken();
-  const endpoint = SEARCH_API_CONFIG[`${operation}Endpoint`];
-  
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${authToken}`
-    },
-    body: JSON.stringify(params)
-  });
-  
-  if (!response.ok) {
-    throw new Error(`Operation failed: ${response.status}`);
-  }
-  */
 }
 
 // File actions
@@ -858,15 +971,6 @@ async function analyzeUploadedFile(file) {
     tags: { crow: 2, pigeon: 1 },
     confidence: 0.95,
   };
-}
-
-function isValidUrl(string) {
-  try {
-    new URL(string);
-    return true;
-  } catch (_) {
-    return false;
-  }
 }
 
 function showNotification(message, type = "info") {

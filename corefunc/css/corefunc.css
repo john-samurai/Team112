@@ -432,6 +432,85 @@
   background: var(--surface);
 }
 
+/* NEW: Thumbnail Search Result Specific Styles */
+.thumbnail-result-card {
+  grid-column: 1 / -1; /* Span full width */
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.thumbnail-result-preview {
+  width: 100%;
+  padding: 2rem;
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+}
+
+.large-image-preview {
+  max-width: 100%;
+  max-height: 600px;
+  height: auto;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  object-fit: contain;
+}
+
+.thumbnail-result-info {
+  padding: 2rem;
+}
+
+.thumbnail-result-info .result-filename {
+  font-size: 1.1rem;
+  margin-bottom: 1.5rem;
+  color: var(--text-primary);
+}
+
+.result-urls {
+  margin: 1.5rem 0;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+}
+
+.url-item {
+  margin-bottom: 1rem;
+  word-break: break-all;
+}
+
+.url-item:last-child {
+  margin-bottom: 0;
+}
+
+.url-item strong {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+.url-link {
+  color: var(--primary-color);
+  text-decoration: none;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.url-link:hover {
+  text-decoration: underline;
+}
+
+.thumbnail-result-info .result-actions {
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+.thumbnail-result-info .btn-action {
+  flex: none;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+}
+
 /* No Results State */
 .no-results {
   text-align: center;
@@ -879,5 +958,31 @@
 
   .modal-large {
     width: 95%;
+  }
+
+  /* Responsive for thumbnail search results */
+  .thumbnail-result-preview {
+    padding: 1rem;
+  }
+
+  .large-image-preview {
+    max-height: 400px;
+  }
+
+  .thumbnail-result-info {
+    padding: 1rem;
+  }
+
+  .url-item {
+    font-size: 0.8rem;
+  }
+
+  .thumbnail-result-info .result-actions {
+    flex-direction: column;
+  }
+
+  .thumbnail-result-info .btn-action {
+    width: 100%;
+    margin-bottom: 0.5rem;
   }
 }
