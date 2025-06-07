@@ -237,15 +237,21 @@ async function searchByThumbnailUrl() {
     if (results && results.links && results.links.length > 0) {
       // Convert API response to displayable format
       const displayResults = {
-        results: results.links.map((fullImageUrl, index) => ({
-          id: `thumbnail-result-${index}`,
-          filename: fullImageUrl.split("/").pop(),
-          type: "image",
-          tags: { detected: 1 }, // Placeholder since we don't get tags from this API
-          thumbnailUrl: thumbnailUrl, // Original thumbnail URL
-          fullUrl: fullImageUrl,
-          s3Key: fullImageUrl.split("/").slice(-2).join("/"), // Extract relative path
-        })),
+        results: results.links.map((fullImageUrl, index) => {
+          // Extract clean filename (without query parameters)
+          const cleanUrl = fullImageUrl.split("?")[0]; // Remove query parameters
+          const filename = cleanUrl.split("/").pop();
+
+          return {
+            id: `thumbnail-result-${index}`,
+            filename: filename, // Clean filename without query params
+            type: "image",
+            tags: { detected: 1 }, // Placeholder since we don't get tags from this API
+            thumbnailUrl: thumbnailUrl, // Original thumbnail URL
+            fullUrl: fullImageUrl, // Keep full pre-signed URL for access
+            s3Key: cleanUrl.split("/").slice(-2).join("/"), // Extract relative path from clean URL
+          };
+        }),
         total: results.links.length,
         searchType: "thumbnail",
         searchParams: { thumbnailUrl: thumbnailUrl },
