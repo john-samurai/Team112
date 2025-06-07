@@ -1,4 +1,5 @@
-// Complete Search & Management functionality with Dynamic Species Loading and Backend Integration
+// Enhanced Search.js with comprehensive debugging and fixes
+
 let selectedFiles = [];
 let currentSearchResults = [];
 let searchUploadedFile = null;
@@ -10,15 +11,13 @@ const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
 // Configuration for search endpoints
 const SEARCH_API_CONFIG = {
-  // Existing endpoints
-  thumbnailSearchEndpoint:
-    "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/birdtag/search-t",
-
   // UPDATED: Use search-s for BOTH species listing AND search functionality
   getSpeciesEndpoint:
     "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/birdtag/search-s",
   searchByTagsEndpoint:
     "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/birdtag/search-s",
+  thumbnailSearchEndpoint:
+    "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/birdtag/search-t",
 
   // Future endpoints (keep as is)
   searchByFileEndpoint:
@@ -31,7 +30,22 @@ const SEARCH_API_CONFIG = {
     "https://your-api-id.execute-api.region.amazonaws.com/dev/birdtag/delete",
 };
 
-// Dynamic Species Loading
+// Enhanced logging function
+function debugLog(message, data = null) {
+  console.log(`[DEBUG] ${message}`);
+  if (data) {
+    console.log(`[DEBUG DATA]`, data);
+  }
+}
+
+// Enhanced error handling
+function handleSearchError(error, context = "Search") {
+  console.error(`[ERROR] ${context}:`, error);
+  showNotification(`${context} failed: ${error.message}`, "error");
+  hideSearchResults();
+}
+
+// Dynamic Species Loading with better error handling
 async function getSpeciesList() {
   // Check cache first
   if (
@@ -39,12 +53,12 @@ async function getSpeciesList() {
     speciesCacheTimestamp &&
     Date.now() - speciesCacheTimestamp < CACHE_DURATION
   ) {
-    console.log("Using cached species list:", cachedSpecies);
+    debugLog("Using cached species list", cachedSpecies);
     return cachedSpecies;
   }
 
   try {
-    console.log("Fetching species from API...");
+    debugLog("Fetching species from API...");
     const authToken = getAuthenticationToken();
 
     if (!authToken) {
@@ -59,23 +73,38 @@ async function getSpeciesList() {
       },
     });
 
+    debugLog(`Species API response status: ${response.status}`);
+
     if (response.ok) {
       const data = await response.json();
+      debugLog("Species API response data", data);
 
-      // Extract species names from response
-      const speciesList = data.species || [];
+      // Try different possible response structures
+      let speciesList = [];
+      if (data.species) {
+        speciesList = data.species;
+      } else if (data.tags) {
+        speciesList = data.tags;
+      } else if (Array.isArray(data)) {
+        speciesList = data;
+      } else if (data.body) {
+        try {
+          const parsedBody = JSON.parse(data.body);
+          speciesList = parsedBody.species || parsedBody.tags || [];
+        } catch (e) {
+          debugLog("Could not parse body as JSON", e);
+        }
+      }
 
       // Cache the results
       cachedSpecies = speciesList.sort(); // Sort alphabetically
       speciesCacheTimestamp = Date.now();
 
-      console.log(
-        `Loaded ${speciesList.length} species from API:`,
-        speciesList
-      );
+      debugLog(`Loaded ${speciesList.length} species from API`, speciesList);
       return cachedSpecies;
     } else {
       const errorText = await response.text();
+      debugLog(`API request failed: ${response.status}`, errorText);
       throw new Error(`API request failed: ${response.status} - ${errorText}`);
     }
   } catch (error) {
@@ -91,29 +120,342 @@ async function getSpeciesList() {
       "hawk",
       "owl",
       "duck",
+      "blue jay",
+      "cardinal",
+      "canary",
+      "parrot",
+      "flamingo",
+      "penguin",
     ];
     showNotification("Using default species list (API unavailable)", "info");
     return fallbackSpecies;
   }
 }
 
+// Enhanced searchByTags function with comprehensive debugging
+async function searchByTags() {
+  debugLog("=== Starting Search by Tags ===");
+
+  const speciesSelect = document.getElementById("speciesSelect");
+  if (!speciesSelect) {
+    handleSearchError(
+      new Error("Species select element not found"),
+      "UI Error"
+    );
+    return;
+  }
+
+  const selectedSpecies = Array.from(speciesSelect.selectedOptions).map(
+    (option) => option.value
+  );
+
+  debugLog("Selected species from UI", selectedSpecies);
+
+  if (selectedSpecies.length === 0) {
+    showNotification("Please select at least one bird species", "error");
+    return;
+  }
+
+  try {
+    showSearchLoading();
+
+    // Build API URL with query parameters
+    const queryParams = new URLSearchParams();
+    selectedSpecies.forEach((species, index) => {
+      queryParams.append(`tag${index + 1}`, species);
+    });
+
+    const apiUrl = `${
+      SEARCH_API_CONFIG.searchByTagsEndpoint
+    }?${queryParams.toString()}`;
+    debugLog("API URL being called", apiUrl);
+
+    const authToken = getAuthenticationToken();
+    if (!authToken) {
+      throw new Error("Authentication required");
+    }
+
+    debugLog("Making API request with auth token");
+
+    const response = await fetch(apiUrl, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    debugLog(`Search API response status: ${response.status}`);
+
+    if (response.ok) {
+      const data = await response.json();
+      debugLog("Raw API response data", data);
+
+      // Enhanced data parsing to handle different response structures
+      let links = [];
+
+      if (data.links) {
+        links = data.links;
+      } else if (data.body) {
+        try {
+          const parsedBody = JSON.parse(data.body);
+          links = parsedBody.links || [];
+        } catch (e) {
+          debugLog("Could not parse body as JSON", e);
+        }
+      } else if (data.Items) {
+        // Handle DynamoDB direct response format
+        links = data.Items.map(
+          (item) => item.s3_url || item.url || item.link
+        ).filter(Boolean);
+      } else if (Array.isArray(data)) {
+        links = data;
+      }
+
+      debugLog(`Extracted ${links.length} links from response`, links);
+
+      if (links.length === 0) {
+        debugLog("No links found in response - showing no results");
+        displayNoResults(selectedSpecies);
+        return;
+      }
+
+      // Convert API response to displayable format
+      const searchResults = {
+        results: await Promise.all(
+          links.map(async (url, index) => {
+            debugLog(`Processing URL ${index + 1}`, url);
+
+            // Extract filename from URL
+            const urlParts = url.split("?")[0]; // Remove query parameters
+            const filename = urlParts.split("/").pop();
+
+            debugLog(`Extracted filename: ${filename}`);
+
+            // Determine file type and create appropriate URLs
+            const isThumbUrl = filename && filename.startsWith("thumb_");
+            let thumbnailUrl = null;
+            let fullUrl = url;
+
+            if (isThumbUrl) {
+              // This is a thumbnail URL, we need to get the full-size URL
+              thumbnailUrl = url;
+
+              // Generate full-size URL by removing 'thumb_' prefix
+              const fullFilename = filename.replace("thumb_", "");
+              const fullUrlBase = url
+                .split("?")[0]
+                .replace(filename, fullFilename);
+
+              // For now, we'll use the same URL structure
+              const queryString = url.split("?")[1];
+              fullUrl = queryString
+                ? `${fullUrlBase}?${queryString}`
+                : fullUrlBase;
+            }
+
+            // Determine file type more accurately
+            let fileType = "image"; // default
+            if (filename) {
+              const extension = filename.split(".").pop().toLowerCase();
+              if (["mp4", "avi", "mov", "wmv"].includes(extension)) {
+                fileType = "video";
+              } else if (["mp3", "wav", "aac", "ogg"].includes(extension)) {
+                fileType = "audio";
+              }
+            }
+
+            const resultItem = {
+              id: `search-result-${index}`,
+              filename: filename || `file-${index}`,
+              shortenedPath: filename || `file-${index}`,
+              type: fileType,
+              tags: selectedSpecies.reduce((acc, species) => {
+                acc[species] = 1; // Default count of 1 for each searched species
+                return acc;
+              }, {}),
+              thumbnailUrl: thumbnailUrl,
+              fullUrl: fullUrl,
+              presignedUrl: url, // Store the original pre-signed URL
+              s3Key: urlParts.replace(/^https?:\/\/[^\/]+\//, ""),
+            };
+
+            debugLog(`Created result item ${index + 1}`, resultItem);
+            return resultItem;
+          })
+        ),
+        total: links.length,
+        searchType: "tags",
+        searchParams: { species: selectedSpecies },
+      };
+
+      debugLog("Final search results object", searchResults);
+
+      displaySearchResults(searchResults, "tags");
+
+      if (searchResults.total > 0) {
+        showNotification(
+          `Found ${
+            searchResults.total
+          } files containing: ${selectedSpecies.join(", ")}`,
+          "success"
+        );
+      } else {
+        showNotification(
+          `No files found containing: ${selectedSpecies.join(", ")}`,
+          "info"
+        );
+      }
+    } else {
+      const errorText = await response.text();
+      debugLog("API request failed", {
+        status: response.status,
+        error: errorText,
+      });
+      throw new Error(`Search failed: ${response.status} - ${errorText}`);
+    }
+  } catch (error) {
+    handleSearchError(error, "Search by tags");
+  }
+
+  debugLog("=== End Search by Tags ===");
+}
+
+// Helper function to display no results
+function displayNoResults(selectedSpecies) {
+  const resultsSection = document.getElementById("searchResultsSection");
+  const resultsTitle = document.getElementById("resultsTitle");
+  const resultsCount = document.getElementById("resultsCount");
+  const resultsContainer = document.getElementById("searchResults");
+
+  resultsTitle.textContent = "No Results Found";
+  resultsCount.textContent = `No files found containing: ${selectedSpecies.join(
+    ", "
+  )}`;
+  resultsContainer.innerHTML = `
+    <div class="no-results">
+      <p>No files found matching your search criteria.</p>
+      <p>Searched for: <strong>${selectedSpecies.join(", ")}</strong></p>
+      <p>Try adjusting your search parameters or check if files are properly tagged.</p>
+    </div>
+  `;
+
+  currentSearchResults = [];
+  resultsSection.style.display = "block";
+  clearSelection();
+}
+
+// Enhanced displaySearchResults function
+function displaySearchResults(results, searchType) {
+  debugLog("=== Displaying Search Results ===", results);
+
+  const resultsSection = document.getElementById("searchResultsSection");
+  const resultsTitle = document.getElementById("resultsTitle");
+  const resultsCount = document.getElementById("resultsCount");
+  const resultsContainer = document.getElementById("searchResults");
+
+  if (!results.results || results.results.length === 0) {
+    debugLog("No results to display");
+    resultsTitle.textContent = "No Results Found";
+    resultsCount.textContent = "No files found matching your criteria";
+    resultsContainer.innerHTML = `
+      <div class="no-results">
+        <p>No files found matching your search criteria.</p>
+        <p>Try adjusting your search parameters.</p>
+      </div>
+    `;
+  } else {
+    debugLog(`Displaying ${results.results.length} results`);
+
+    if (searchType === "thumbnail") {
+      resultsTitle.textContent = "Full-Size Image Found";
+      resultsCount.textContent = `Found matching full-size image`;
+      resultsContainer.innerHTML = results.results
+        .map((file) => createThumbnailResultCard(file))
+        .join("");
+    } else {
+      resultsTitle.textContent = "Search Results";
+      resultsCount.textContent = `Found ${results.total} files matching your criteria`;
+      resultsContainer.innerHTML = results.results
+        .map((file) => createResultCard(file, searchType))
+        .join("");
+    }
+  }
+
+  currentSearchResults = results.results || [];
+  resultsSection.style.display = "block";
+  clearSelection();
+
+  debugLog("=== Results Display Complete ===");
+}
+
+// Add a test function to help debug API connectivity
+async function testAPIConnectivity() {
+  try {
+    debugLog("=== Testing API Connectivity ===");
+
+    const authToken = getAuthenticationToken();
+    debugLog("Auth token available:", !!authToken);
+
+    if (!authToken) {
+      debugLog("No auth token - user may not be signed in");
+      return;
+    }
+
+    // Test the search endpoint with a simple request
+    const testUrl = `${SEARCH_API_CONFIG.searchByTagsEndpoint}?tag1=hawk`;
+    debugLog("Testing URL:", testUrl);
+
+    const response = await fetch(testUrl, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    debugLog("Test response status:", response.status);
+    debugLog(
+      "Test response headers:",
+      Object.fromEntries(response.headers.entries())
+    );
+
+    const responseText = await response.text();
+    debugLog("Test response text:", responseText);
+
+    try {
+      const responseJson = JSON.parse(responseText);
+      debugLog("Test response JSON:", responseJson);
+    } catch (e) {
+      debugLog("Response is not valid JSON");
+    }
+  } catch (error) {
+    debugLog("API connectivity test failed:", error);
+  }
+}
+
+// Add the test function to window for manual debugging
+window.testAPIConnectivity = testAPIConnectivity;
+window.debugSearchByTags = searchByTags;
+
+// Rest of your existing functions remain the same...
+// (I'll include the key ones that might need fixes)
+
 // Populate species select elements
 async function populateSpeciesSelects() {
-  // Find all species select elements
   const selectElements = document.querySelectorAll(
     ".tag-select, .species-select"
   );
 
-  // If no species select elements found, don't make API call
   if (selectElements.length === 0) {
-    console.log("No species select elements found - skipping species loading");
+    debugLog("No species select elements found - skipping species loading");
     return;
   }
 
   const speciesList = await getSpeciesList();
+  debugLog("Populating selects with species list", speciesList);
 
   selectElements.forEach((select) => {
-    // Save current selection
     const currentValue = select.value;
 
     // Clear existing options except the first placeholder
@@ -144,308 +486,22 @@ async function populateSpeciesSelects() {
     }
   });
 
-  console.log(
+  debugLog(
     `Populated ${selectElements.length} select elements with ${speciesList.length} species`
   );
 }
 
-// Refresh species cache manually
-async function refreshSpeciesCache() {
-  cachedSpecies = null;
-  speciesCacheTimestamp = null;
-  await populateSpeciesSelects();
-  showNotification("Species list refreshed!", "success");
+// Enhanced authentication token getter
+function getAuthenticationToken() {
+  const token = sessionStorage.getItem("idToken") || "";
+  debugLog("Retrieved auth token length:", token.length);
+  return token;
 }
 
-// Updated searchByTags function to handle both thumbnail and full URLs
-async function searchByTags() {
-  const speciesSelect = document.getElementById("speciesSelect");
-  const selectedSpecies = Array.from(speciesSelect.selectedOptions).map(
-    (option) => option.value
-  );
-
-  if (selectedSpecies.length === 0) {
-    showNotification("Please select at least one bird species", "error");
-    return;
-  }
-
-  try {
-    showSearchLoading();
-
-    // Build API URL with query parameters for your existing Lambda
-    const queryParams = new URLSearchParams();
-    selectedSpecies.forEach((species, index) => {
-      queryParams.append(`tag${index + 1}`, species);
-    });
-
-    const apiUrl = `${
-      SEARCH_API_CONFIG.searchByTagsEndpoint
-    }?${queryParams.toString()}`;
-
-    console.log("Searching by tags:", selectedSpecies);
-    console.log("API URL:", apiUrl);
-
-    const authToken = getAuthenticationToken();
-    if (!authToken) {
-      throw new Error("Authentication required");
-    }
-
-    const response = await fetch(apiUrl, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${authToken}`,
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-
-      // Convert API response to displayable format
-      const searchResults = {
-        results: data.links
-          ? await Promise.all(
-              data.links.map(async (url, index) => {
-                // Extract filename from URL
-                const urlParts = url.split("?")[0]; // Remove query parameters
-                const filename = urlParts.split("/").pop();
-
-                // Determine file type and create appropriate URLs
-                const isThumbUrl = filename && filename.startsWith("thumb_");
-                let thumbnailUrl = null;
-                let fullUrl = url;
-
-                if (isThumbUrl) {
-                  // This is a thumbnail URL, we need to get the full-size URL
-                  thumbnailUrl = url;
-
-                  // Generate full-size URL by removing 'thumb_' prefix
-                  const fullFilename = filename.replace("thumb_", "");
-                  const fullUrlBase = url
-                    .split("?")[0]
-                    .replace(filename, fullFilename);
-
-                  // For now, we'll use the same URL structure (you might need to call API for full URL)
-                  const queryString = url.split("?")[1];
-                  fullUrl = queryString
-                    ? `${fullUrlBase}?${queryString}`
-                    : fullUrlBase;
-                }
-
-                return {
-                  id: `search-result-${index}`,
-                  filename: filename,
-                  shortenedPath: filename, // Show just the filename
-                  type: isThumbUrl ? "image" : "video", // Simplified detection
-                  tags: selectedSpecies.reduce((acc, species) => {
-                    acc[species] = 1;
-                    return acc;
-                  }, {}),
-                  thumbnailUrl: thumbnailUrl,
-                  fullUrl: fullUrl,
-                  presignedUrl: url, // Store the original pre-signed URL
-                  s3Key: urlParts.replace(/^https?:\/\/[^\/]+\//, ""),
-                };
-              })
-            )
-          : [],
-        total: data.links ? data.links.length : 0,
-        searchType: "tags",
-        searchParams: { species: selectedSpecies },
-      };
-
-      displaySearchResults(searchResults, "tags");
-
-      if (searchResults.total > 0) {
-        showNotification(
-          `Found ${
-            searchResults.total
-          } files containing: ${selectedSpecies.join(", ")}`,
-          "success"
-        );
-      } else {
-        showNotification(
-          `No files found containing: ${selectedSpecies.join(", ")}`,
-          "info"
-        );
-      }
-    } else {
-      const errorText = await response.text();
-      throw new Error(`Search failed: ${response.status} - ${errorText}`);
-    }
-  } catch (error) {
-    console.error("Search by tags failed:", error);
-    showNotification("Search failed: " + error.message, "error");
-    hideSearchResults();
-  }
-}
-
-// Updated createResultCard function
-function createResultCard(file, searchType) {
-  const tagsDisplay = Object.entries(file.tags)
-    .map(([species, count]) => `${species} ×${count}`)
-    .join(", ");
-
-  // Create thumbnail content based on file type
-  let thumbnailContent;
-  if (file.type === "image" && file.thumbnailUrl) {
-    thumbnailContent = `<img src="${file.thumbnailUrl}" alt="${file.filename}" class="result-thumbnail">`;
-  } else if (file.type === "video") {
-    thumbnailContent = `<div class="result-thumbnail result-icon">${getFileTypeIcon(
-      "video"
-    )}</div>`;
-  } else if (file.type === "audio") {
-    thumbnailContent = `<div class="result-thumbnail result-icon">${getFileTypeIcon(
-      "audio"
-    )}</div>`;
-  } else {
-    thumbnailContent = `<div class="result-thumbnail result-icon">${getFileTypeIcon(
-      "image"
-    )}</div>`;
-  }
-
-  const actionButtons = getActionButtons(file);
-
-  return `
-    <div class="result-card" data-file-id="${file.id}">
-      <input type="checkbox" class="result-checkbox" 
-             onchange="toggleFileSelection(this, '${file.id}')">
-      ${thumbnailContent}
-      <div class="result-content">
-        <div class="result-filename">${file.shortenedPath}</div>
-        <div class="result-tags">${tagsDisplay}</div>
-        <div class="result-file-type">${file.type.toUpperCase()}</div>
-        
-        <!-- New: Full Pre-signed URL Button -->
-        <div class="result-url-section">
-          <button class="btn-presigned-url" onclick="showFullPresignedUrl('${
-            file.id
-          }')">
-            📋 Full Pre-Signed URL
-          </button>
-        </div>
-        
-        <div class="result-actions">
-          ${actionButtons}
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-// New function to show full pre-signed URL
-function showFullPresignedUrl(fileId) {
-  const file = currentSearchResults.find((f) => f.id === fileId);
-  if (file && file.presignedUrl) {
-    // Create a modal or alert with the full URL
-    const modal = document.createElement("div");
-    modal.className = "presigned-url-modal";
-    modal.innerHTML = `
-      <div class="modal-content">
-        <h3>Full Pre-Signed URL</h3>
-        <div class="url-display">
-          <textarea readonly>${file.presignedUrl}</textarea>
-        </div>
-        <div class="modal-buttons">
-          <button onclick="copyToClipboard('${file.presignedUrl.replace(
-            /'/g,
-            "\\'"
-          )}')">📋 Copy URL</button>
-          <button onclick="this.closest('.presigned-url-modal').remove()">Close</button>
-        </div>
-      </div>
-    `;
-
-    // Style the modal
-    modal.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0,0,0,0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 2000;
-    `;
-
-    const modalContent = modal.querySelector(".modal-content");
-    modalContent.style.cssText = `
-      background: white;
-      padding: 2rem;
-      border-radius: 0.5rem;
-      max-width: 80%;
-      max-height: 80%;
-    `;
-
-    const textarea = modal.querySelector("textarea");
-    textarea.style.cssText = `
-      width: 100%;
-      height: 200px;
-      margin: 1rem 0;
-      font-family: monospace;
-      font-size: 0.8rem;
-    `;
-
-    document.body.appendChild(modal);
-  } else {
-    showNotification("URL not found", "error");
-  }
-}
-
-// Updated viewFile function to use full-size URL
-function viewFile(fileId) {
-  const file = currentSearchResults.find((f) => f.id === fileId);
-  if (file && file.fullUrl) {
-    window.open(file.fullUrl, "_blank");
-  } else {
-    showNotification("File not found", "error");
-  }
-}
-
-async function searchByTagsAndCounts() {
-  const tagPairs = document.querySelectorAll("#tagCountPairs .tag-count-pair");
-  const searchParams = {};
-
-  tagPairs.forEach((pair) => {
-    const tag = pair.querySelector(".tag-select").value;
-    const count = pair.querySelector(".count-input").value;
-
-    if (tag && count) {
-      searchParams[tag] = parseInt(count);
-    }
-  });
-
-  if (Object.keys(searchParams).length === 0) {
-    showNotification(
-      "Please select at least one bird species and count",
-      "error"
-    );
-    return;
-  }
-
-  try {
-    showSearchLoading();
-
-    // NOTE: For tags & counts, you'll need to create a different endpoint
-    // or modify your existing search-s Lambda to handle counts
-    // For now, this will use the mock approach
-    const results = await performSearch("tags-counts", searchParams);
-    displaySearchResults(results, "tags-counts");
-
-    showNotification(
-      "Note: Tag counts search using mock data. Backend integration needed.",
-      "info"
-    );
-  } catch (error) {
-    showNotification("Search failed: " + error.message, "error");
-    hideSearchResults();
-  }
-}
-
-// Initialize search functionality
+// Enhanced initialization
 function initializeSearch() {
+  debugLog("=== Initializing Search Functionality ===");
+
   const searchTabs = document.querySelectorAll(".sub-nav-links a");
 
   searchTabs.forEach((tab) => {
@@ -475,467 +531,19 @@ function initializeSearch() {
 
   // Show the first form by default
   showSearchForm("tags-counts");
+
+  debugLog("Search initialization complete");
+
+  // Add debugging helpers to console
+  console.log("Debug helpers available:");
+  console.log("- testAPIConnectivity() - Test API connection");
+  console.log("- debugSearchByTags() - Run search with full logging");
 }
 
-// Enhanced form functions with species population
-function addTagCountPair() {
-  const container = document.getElementById("tagCountPairs");
-  const pairDiv = document.createElement("div");
-  pairDiv.className = "tag-count-pair";
-  pairDiv.innerHTML = `
-    <select class="tag-select">
-      <option value="">Select bird species</option>
-    </select>
-    <input type="number" class="count-input" placeholder="Count" min="1">
-    <button class="btn-remove-tag" onclick="this.parentElement.remove()">× Remove</button>
-  `;
-  container.appendChild(pairDiv);
-
-  // Populate the new select element
-  populateSpeciesSelects();
-}
-
-function addTagPairToModal(containerId) {
-  const container = document.getElementById(containerId);
-  const pairDiv = document.createElement("div");
-  pairDiv.className = "tag-count-pair";
-  pairDiv.innerHTML = `
-    <select class="tag-select">
-      <option value="">Select bird species</option>
-    </select>
-    <input type="number" class="count-input" placeholder="Count" min="1">
-    <button class="btn-remove-tag" onclick="this.parentElement.remove()">× Remove</button>
-  `;
-  container.appendChild(pairDiv);
-
-  // Populate the new select element
-  populateSpeciesSelects();
-
-  // Update preview
-  if (containerId === "addTagsPairs") {
-    updateAddTagsPreview();
-  } else if (containerId === "removeTagsPairs") {
-    updateRemoveTagsPreview();
-  }
-}
-
-// Show specific search form
-function showSearchForm(searchType) {
-  // Hide all search forms
-  document.querySelectorAll(".search-form").forEach((form) => {
-    form.style.display = "none";
-  });
-
-  // Show selected form
-  const selectedForm = document.getElementById(`${searchType}-form`);
-  if (selectedForm) {
-    selectedForm.style.display = "block";
-
-    // Only populate species selects for forms that need them
-    const formsNeedingSpecies = ["tags-counts", "tags"];
-    if (formsNeedingSpecies.includes(searchType)) {
-      populateSpeciesSelects();
-    }
-  }
-
-  // Hide results when switching forms
-  hideSearchResults();
-  clearSelection();
-}
-
-// Reset forms with species repopulation
-function resetTagsCountsForm() {
-  const container = document.getElementById("tagCountPairs");
-  container.innerHTML = `
-    <div class="tag-count-pair">
-      <select class="tag-select">
-        <option value="">Select bird species</option>
-      </select>
-      <input type="number" class="count-input" placeholder="Count" min="1">
-      <button class="btn-remove-tag" onclick="this.parentElement.remove()">× Remove</button>
-    </div>
-  `;
-  populateSpeciesSelects();
-  hideSearchResults();
-}
-
-function clearTagsForm() {
-  document.getElementById("speciesSelect").selectedIndex = -1;
-  hideSearchResults();
-}
-
-function clearThumbnailForm() {
-  document.getElementById("thumbnailUrl").value = "";
-  hideSearchResults();
-}
-
-function clearFileUploadForm() {
-  document.getElementById("searchFileInput").value = "";
-  document.getElementById("searchByFileBtn").disabled = true;
-  searchUploadedFile = null;
-  hideSearchResults();
-}
-
-// Display search results
-function displaySearchResults(results, searchType) {
-  const resultsSection = document.getElementById("searchResultsSection");
-  const resultsTitle = document.getElementById("resultsTitle");
-  const resultsCount = document.getElementById("resultsCount");
-  const resultsContainer = document.getElementById("searchResults");
-
-  if (!results.results || results.results.length === 0) {
-    resultsTitle.textContent = "No Results Found";
-    resultsCount.textContent = "No files found matching your criteria";
-    resultsContainer.innerHTML = `
-      <div class="no-results">
-        <p>No files found matching your search criteria.</p>
-        <p>Try adjusting your search parameters.</p>
-      </div>
-    `;
-  } else {
-    if (searchType === "thumbnail") {
-      resultsTitle.textContent = "Full-Size Image Found";
-      resultsCount.textContent = `Found matching full-size image`;
-      resultsContainer.innerHTML = results.results
-        .map((file) => createThumbnailResultCard(file))
-        .join("");
-    } else {
-      resultsTitle.textContent = "Search Results";
-      resultsCount.textContent = `Found ${results.total} files matching your criteria`;
-      resultsContainer.innerHTML = results.results
-        .map((file) => createResultCard(file, searchType))
-        .join("");
-    }
-  }
-
-  currentSearchResults = results.results || [];
-  resultsSection.style.display = "block";
-  clearSelection();
-}
-
-function createResultCard(file, searchType) {
-  const tagsDisplay = Object.entries(file.tags)
-    .map(([species, count]) => `${species} ×${count}`)
-    .join(", ");
-
-  const thumbnailContent =
-    file.type === "image" && file.thumbnailUrl
-      ? `<img src="${file.thumbnailUrl}" alt="${file.filename}" class="result-thumbnail">`
-      : `<div class="result-thumbnail result-icon">${getFileTypeIcon(
-          file.type
-        )}</div>`;
-
-  const actionButtons = getActionButtons(file);
-
-  return `
-    <div class="result-card" data-file-id="${file.id}">
-      <input type="checkbox" class="result-checkbox" 
-             onchange="toggleFileSelection(this, '${file.id}')">
-      ${thumbnailContent}
-      <div class="result-content">
-        <div class="result-filename">${file.filename}</div>
-        <div class="result-tags">${tagsDisplay}</div>
-        <div class="result-file-type">${file.type.toUpperCase()}</div>
-        <div class="result-actions">
-          ${actionButtons}
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function createThumbnailResultCard(file) {
-  const fullUrl = file.fullUrl;
-  const shortUrl =
-    fullUrl.length > 80
-      ? fullUrl.substring(0, 60) +
-        "..." +
-        fullUrl.substring(fullUrl.length - 20)
-      : fullUrl;
-
-  return `
-    <div class="result-card thumbnail-result-card" data-file-id="${file.id}">
-      <div class="thumbnail-result-preview">
-        <img src="${file.fullUrl}" alt="${file.filename}" 
-             class="large-image-preview" 
-             onerror="this.src='${
-               file.thumbnailUrl
-             }'; this.alt='Image preview failed';">
-      </div>
-      
-      <div class="thumbnail-result-info">
-        <div class="result-filename"><strong>Filename:</strong> ${
-          file.filename
-        }</div>
-        <div class="result-urls">
-          <div class="url-item">
-            <strong>Thumbnail URL:</strong> 
-            <span class="url-text">${file.thumbnailUrl}</span>
-          </div>
-          <div class="url-item">
-            <strong>Full-size URL (Pre-signed URL):</strong> 
-            <a href="${file.fullUrl}" target="_blank" class="url-link" title="${
-    file.fullUrl
-  }">
-              ${shortUrl}
-            </a>
-            <button class="btn-copy-url" onclick="copyToClipboard('${file.fullUrl.replace(
-              /'/g,
-              "\\'"
-            )}')">📋 Copy Full URL</button>
-          </div>
-        </div>
-        <div class="result-actions">
-          <button class="btn-action" onclick="viewFile('${
-            file.id
-          }')">View Full Size</button>
-          <button class="btn-action" onclick="downloadFile('${
-            file.id
-          }')">Download</button>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function getFileTypeIcon(type) {
-  switch (type) {
-    case "image":
-      return "🖼️";
-    case "video":
-      return "🎥";
-    case "audio":
-      return "🎵";
-    default:
-      return "📄";
-  }
-}
-
-function getActionButtons(file) {
-  if (file.type === "image") {
-    return `
-      <button class="btn-action" onclick="viewFile('${file.id}')">View Full Size</button>
-      <button class="btn-action" onclick="downloadFile('${file.id}')">Download</button>
-    `;
-  } else if (file.type === "video" || file.type === "audio") {
-    return `
-      <button class="btn-action" onclick="playFile('${file.id}')">Play</button>
-      <button class="btn-action" onclick="downloadFile('${file.id}')">Download</button>
-    `;
-  }
-  return `<button class="btn-action" onclick="downloadFile('${file.id}')">Download</button>`;
-}
-
-// File actions
-function viewFile(fileId) {
-  const file = currentSearchResults.find((f) => f.id === fileId);
-  if (file && file.fullUrl) {
-    window.open(file.fullUrl, "_blank");
-  } else {
-    showNotification("File not found", "error");
-  }
-}
-
-function playFile(fileId) {
-  const file = currentSearchResults.find((f) => f.id === fileId);
-  if (file && file.fullUrl) {
-    window.open(file.fullUrl, "_blank");
-  } else {
-    showNotification("File not found", "error");
-  }
-}
-
-function downloadFile(fileId) {
-  const file = currentSearchResults.find((f) => f.id === fileId);
-  if (file && file.fullUrl) {
-    const link = document.createElement("a");
-    link.href = file.fullUrl;
-    link.download = file.filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showNotification(`Downloading ${file.filename}`, "success");
-  } else {
-    showNotification("File not found", "error");
-  }
-}
-
-// Copy URL to clipboard function
-function copyToClipboard(url) {
-  if (navigator.clipboard && window.isSecureContext) {
-    navigator.clipboard
-      .writeText(url)
-      .then(() => {
-        showNotification("Full URL copied to clipboard!", "success");
-      })
-      .catch((err) => {
-        console.error("Failed to copy: ", err);
-        showNotification("Failed to copy URL", "error");
-      });
-  } else {
-    const textArea = document.createElement("textarea");
-    textArea.value = url;
-    textArea.style.position = "fixed";
-    textArea.style.left = "-999999px";
-    textArea.style.top = "-999999px";
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-
-    try {
-      document.execCommand("copy");
-      showNotification("Full URL copied to clipboard!", "success");
-    } catch (err) {
-      console.error("Failed to copy: ", err);
-      showNotification("Failed to copy URL", "error");
-    } finally {
-      document.body.removeChild(textArea);
-    }
-  }
-}
-
-// Helper functions
-function showSearchLoading() {
-  const resultsContainer = document.getElementById("searchResults");
-  resultsContainer.innerHTML = `
-    <div class="search-loading">
-      <div class="loading-spinner"></div>
-      <p>Searching...</p>
-    </div>
-  `;
-  document.getElementById("searchResultsSection").style.display = "block";
-}
-
-function hideSearchResults() {
-  document.getElementById("searchResultsSection").style.display = "none";
-  clearSelection();
-}
-
-function showNotification(message, type = "info") {
-  const notification = document.createElement("div");
-  notification.className = `notification-toast ${type}`;
-  notification.textContent = message;
-
-  notification.style.cssText = `
-    position: fixed;
-    top: 2rem;
-    right: 2rem;
-    background: ${
-      type === "success" ? "#10b981" : type === "error" ? "#ef4444" : "#2563eb"
-    };
-    color: white;
-    padding: 1rem 1.5rem;
-    border-radius: 0.5rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    z-index: 2001;
-    font-weight: 500;
-    opacity: 0;
-    transform: translateX(100%);
-    transition: all 0.3s ease;
-    max-width: 300px;
-  `;
-
-  document.body.appendChild(notification);
-
-  setTimeout(() => {
-    notification.style.opacity = "1";
-    notification.style.transform = "translateX(0)";
-  }, 100);
-
-  setTimeout(() => {
-    notification.style.opacity = "0";
-    notification.style.transform = "translateX(100%)";
-    setTimeout(() => {
-      if (notification.parentNode) {
-        notification.parentNode.removeChild(notification);
-      }
-    }, 300);
-  }, 4000);
-}
-
-function getAuthenticationToken() {
-  return sessionStorage.getItem("idToken") || "";
-}
-
-// File selection management (placeholder functions)
-function toggleFileSelection(checkbox, fileId) {
-  if (checkbox.checked) {
-    if (!selectedFiles.includes(fileId)) {
-      selectedFiles.push(fileId);
-    }
-  } else {
-    selectedFiles = selectedFiles.filter((id) => id !== fileId);
-  }
-  updateFloatingActionBar();
-}
-
-function updateFloatingActionBar() {
-  const actionBar = document.getElementById("floatingActionBar");
-  if (selectedFiles.length > 0) {
-    actionBar.classList.remove("hidden");
-    document.getElementById(
-      "selectedCount"
-    ).textContent = `${selectedFiles.length} files selected`;
-  } else {
-    actionBar.classList.add("hidden");
-  }
-}
-
-function clearSelection() {
-  selectedFiles = [];
-  document
-    .querySelectorAll(".result-checkbox")
-    .forEach((cb) => (cb.checked = false));
-  updateFloatingActionBar();
-}
-
-// Mock function for search types not yet implemented
-async function performSearch(searchType, searchParams) {
-  // Simulate API delay
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-
-  // Mock results for demonstration
-  const mockFiles = [
-    {
-      id: "file1",
-      filename: "bird_observation_001.jpg",
-      type: "image",
-      tags: { crow: 3, pigeon: 2 },
-      thumbnailUrl: "https://example.s3.amazonaws.com/bird1-thumb.jpg",
-      fullUrl: "https://example.s3.amazonaws.com/bird1.jpg",
-      s3Key: "user-123/bird1.jpg",
-    },
-  ];
-
-  return {
-    results: mockFiles,
-    total: mockFiles.length,
-    searchType: searchType,
-    searchParams: searchParams,
-  };
-}
-
-// Placeholder functions for features not yet implemented
-function initializeSearchFileUpload() {
-  console.log("File upload search not yet implemented");
-}
-
-function initializeDeleteConfirmation() {
-  console.log("Delete confirmation not yet implemented");
-}
-
-async function searchByThumbnailUrl() {
-  showNotification(
-    "Thumbnail URL search functionality exists in your original code",
-    "info"
-  );
-}
-
-async function searchByFileUpload() {
-  showNotification("File upload search not yet implemented", "info");
-}
+// [Keep all your other existing functions like createResultCard, viewFile, etc.]
 
 // Initialize search functionality on page load
 document.addEventListener("DOMContentLoaded", () => {
+  debugLog("DOM Content Loaded - Starting initialization");
   initializeSearch();
 });
