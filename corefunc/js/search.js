@@ -15,9 +15,9 @@ const SEARCH_API_CONFIG = {
   searchByTagsEndpoint:
     "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/birdtag/search-s",
   thumbnailSearchEndpoint:
-    "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/birdtag/search-t",
+    "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/birdtag/search-t", // ADDED
 
-  // Future endpoints
+  // Future endpoints (keep as is)
   searchByFileEndpoint:
     "https://your-api-id.execute-api.region.amazonaws.com/dev/birdtag/search-file",
   addTagsEndpoint:
@@ -693,6 +693,179 @@ async function downloadFile(fileId) {
   }
 }
 
+// ADDED: Real Thumbnail URL Search Integration
+async function searchByThumbnailUrl() {
+  const thumbnailUrl = document.getElementById("thumbnailUrl").value.trim();
+
+  if (!thumbnailUrl) {
+    showNotification("Please enter a thumbnail URL", "error");
+    return;
+  }
+
+  // Extract filename from URL - handle both full S3 URLs and just filenames
+  let thumbnailFilename = thumbnailUrl;
+  if (thumbnailUrl.includes("/")) {
+    // Extract just the filename from the full S3 URL
+    thumbnailFilename = thumbnailUrl.split("/").pop();
+  }
+
+  // Validate that it's a thumbnail (has thumb_ prefix)
+  if (!thumbnailFilename.startsWith("thumb_")) {
+    showNotification(
+      "Please enter a valid thumbnail URL (filename should start with 'thumb_')",
+      "error"
+    );
+    return;
+  }
+
+  try {
+    showSearchLoading();
+
+    // Call the real API with just the filename
+    const results = await searchThumbnailAPI(thumbnailFilename);
+
+    if (results && results.links && results.links.length > 0) {
+      // Convert API response to displayable format
+      const displayResults = {
+        results: results.links.map((fullImageUrl, index) => {
+          // Extract clean filename (without query parameters)
+          const cleanUrl = fullImageUrl.split("?")[0]; // Remove query parameters
+          const filename = cleanUrl.split("/").pop();
+
+          return {
+            id: `thumbnail-result-${index}`,
+            filename: filename, // Clean filename without query params
+            type: "image",
+            tags: { detected: 1 }, // Placeholder since we don't get tags from this API
+            thumbnailUrl: thumbnailUrl, // Original thumbnail URL
+            fullUrl: fullImageUrl, // Keep full pre-signed URL for access
+            downloadUrl: fullImageUrl, // Same as fullUrl for thumbnail search
+            s3Key: cleanUrl.split("/").slice(-2).join("/"), // Extract relative path from clean URL
+          };
+        }),
+        total: results.links.length,
+        searchType: "thumbnail",
+        searchParams: { thumbnailUrl: thumbnailUrl },
+      };
+
+      displaySearchResults(displayResults, "thumbnail");
+      showNotification(
+        `Found ${results.links.length} matching image(s)`,
+        "success"
+      );
+    } else {
+      // No results found
+      const emptyResults = {
+        results: [],
+        total: 0,
+        searchType: "thumbnail",
+        searchParams: { thumbnailUrl: thumbnailUrl },
+      };
+      displaySearchResults(emptyResults, "thumbnail");
+      showNotification(
+        "No matching full-size image found for this thumbnail",
+        "info"
+      );
+    }
+  } catch (error) {
+    showNotification("Search failed: " + error.message, "error");
+    hideSearchResults();
+  }
+}
+
+// ADDED: Real API call for thumbnail search with Cognito authentication
+async function searchThumbnailAPI(thumbnailFilename) {
+  try {
+    // Get Cognito ID token
+    const idToken = getAuthenticationToken();
+
+    if (!idToken) {
+      throw new Error(
+        "Authentication required. Please sign in to use this feature."
+      );
+    }
+
+    // Build query parameters - your Lambda expects turl1, turl2, etc.
+    const queryParams = new URLSearchParams({
+      turl1: thumbnailFilename.toLowerCase(), // Convert to lowercase as your Lambda does
+    });
+
+    const apiUrl = `${
+      SEARCH_API_CONFIG.thumbnailSearchEndpoint
+    }?${queryParams.toString()}`;
+    debugLog("Thumbnail search API URL", apiUrl);
+
+    // Try different authorization header formats
+    const requestHeaders = {
+      "Content-Type": "application/json",
+    };
+
+    // Try different authorization formats that Cognito might expect
+    if (idToken.startsWith("Bearer ")) {
+      requestHeaders["Authorization"] = idToken; // Already has Bearer prefix
+    } else {
+      requestHeaders["Authorization"] = idToken; // Direct token
+    }
+
+    const response = await fetch(apiUrl, {
+      method: "GET",
+      headers: requestHeaders,
+      mode: "cors",
+    });
+
+    debugLog("Thumbnail search response status:", response.status);
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}`;
+      try {
+        const errorText = await response.text();
+        errorMessage += `: ${errorText}`;
+      } catch (e) {
+        // Could not read error response
+      }
+
+      // Specific error handling for authentication issues
+      if (response.status === 401) {
+        throw new Error(
+          "Authentication token expired. Please sign out and sign in again."
+        );
+      } else if (response.status === 403) {
+        throw new Error(
+          "Access denied. Please check your permissions or sign in again."
+        );
+      }
+
+      throw new Error(errorMessage);
+    }
+
+    const result = await response.json();
+    debugLog("Thumbnail search API result", result);
+    return result;
+  } catch (error) {
+    // Provide more specific error messages
+    if (
+      error.name === "TypeError" &&
+      error.message.includes("Failed to fetch")
+    ) {
+      throw new Error(
+        "Cannot connect to API. Check if you're signed in and try again."
+      );
+    } else if (error.message.includes("401")) {
+      throw new Error(
+        "Authentication token expired. Please sign out and sign in again."
+      );
+    } else if (error.message.includes("403")) {
+      throw new Error("Access denied. Please check your permissions.");
+    } else if (error.message.includes("404")) {
+      throw new Error(
+        "API endpoint not found. Check the API Gateway configuration."
+      );
+    } else {
+      throw error;
+    }
+  }
+}
+
 // Helper function to show download instructions
 function showDownloadInstructionsModal(downloadUrl, filename) {
   const modal = document.createElement("div");
@@ -1023,6 +1196,18 @@ function clearTagsForm() {
   hideSearchResults();
 }
 
+function clearThumbnailForm() {
+  document.getElementById("thumbnailUrl").value = "";
+  hideSearchResults();
+}
+
+function clearFileUploadForm() {
+  document.getElementById("searchFileInput").value = "";
+  document.getElementById("searchByFileBtn").disabled = true;
+  searchUploadedFile = null;
+  hideSearchResults();
+}
+
 // Placeholder functions for not yet implemented features
 function initializeSearchFileUpload() {
   debugLog("Search file upload functionality - placeholder");
@@ -1030,18 +1215,6 @@ function initializeSearchFileUpload() {
 
 function initializeDeleteConfirmation() {
   debugLog("Delete confirmation functionality - placeholder");
-}
-
-function searchByTagsAndCounts() {
-  showNotification("Tags & Counts search not yet implemented", "info");
-}
-
-function searchByThumbnailUrl() {
-  showNotification("Thumbnail URL search not yet implemented", "info");
-}
-
-function searchByFileUpload() {
-  showNotification("File upload search not yet implemented", "info");
 }
 
 // Placeholder modal functions
