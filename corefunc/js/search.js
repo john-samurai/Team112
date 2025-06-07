@@ -1,25 +1,84 @@
-// Search & Management functionality with Thumbnail URL Integration
+// NEW: Real API call for thumbnail search with authentication
+async function searchThumbnailAPI(thumbnailFilename) {
+  try {
+    const authToken = getAuthenticationToken();
+    
+    if (!authToken) {
+      throw new Error("Authentication required. Please sign in to use this feature.");
+    }
+    
+    // Build query parameters - your Lambda expects turl1, turl2, etc.
+    const queryParams = new URLSearchParams({
+      turl1: thumbnailFilename.toLowerCase() // Convert to lowercase as your Lambda does
+    });
+    
+    const apiUrl = `${SEARCH_API_CONFIG.thumbnailSearchEndpoint}?${queryParams.toString()}`;
+    
+    console.log("Calling API:", apiUrl);
+    console.log("Using auth token:", authToken ? "Yes" : "No");
+    
+    const requestHeaders = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${authToken}`,
+      // Add additional headers that might be required for Cognito
+      'X-Amz-Date': new Date().toISOString(),
+    };
+    
+    console.log("Request headers:", requestHeaders);
+    
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: requestHeaders,
+      mode: 'cors', // Enable CORS
+    });
+
+    console.log("API Response status:", response.status);
+    console.log("API Response headers:", [...response.headers.entries()]);
+    
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}`;
+      try {
+        const errorText = await response.text();
+        console.error("API Error response:", errorText);
+        errorMessage += `: ${errorText}`;
+      } catch (e) {
+        console.error("Could not read error response:", e);
+      }
+      
+      // Specific error handling for authentication issues
+      if (response.status === 401 || response.status === 403) {
+        throw new Error("Authentication failed. Please sign out and sign in again.");
+      }
+      
+      throw new Error(errorMessage);
+    }
+
+    const result = await response.json();
+    console.log("API Response data:", result);
+    
+    return result;
+    
+  } catch (error) {
+    console.error("API call failed:", error);
+    
+    // Provide more specific error messages
+    if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+      throw// Search & Management functionality with Thumbnail URL Integration
 let selectedFiles = [];
 let currentSearchResults = [];
 let searchUploadedFile = null;
 
-// Configuration for search endpoints - UPDATE THESE WITH YOUR ACTUAL API GATEWAY URLS
+// Configuration for search endpoints - UPDATED WITH YOUR ACTUAL API ID
 const SEARCH_API_CONFIG = {
-  // API Gateway URL for thumbnail search (API(birdtag) ID: t89sef6460)
-  thumbnailSearchEndpoint:
-    "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/search-t",
-
+  // Your actual API Gateway endpoint
+  thumbnailSearchEndpoint: "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/search-t",
+  
   // Other endpoints (to be configured later)
-  searchByTagsEndpoint:
-    "https://your-api-id.execute-api.region.amazonaws.com/dev/search-tags",
-  searchByFileEndpoint:
-    "https://your-api-id.execute-api.region.amazonaws.com/dev/search-file",
-  addTagsEndpoint:
-    "https://your-api-id.execute-api.region.amazonaws.com/dev/add-tags",
-  removeTagsEndpoint:
-    "https://your-api-id.execute-api.region.amazonaws.com/dev/remove-tags",
-  deleteFilesEndpoint:
-    "https://your-api-id.execute-api.region.amazonaws.com/dev/delete-files",
+  searchByTagsEndpoint: "https://your-api-id.execute-api.region.amazonaws.com/dev/search-tags",
+  searchByFileEndpoint: "https://your-api-id.execute-api.region.amazonaws.com/dev/search-file",
+  addTagsEndpoint: "https://your-api-id.execute-api.region.amazonaws.com/dev/add-tags",
+  removeTagsEndpoint: "https://your-api-id.execute-api.region.amazonaws.com/dev/remove-tags",
+  deleteFilesEndpoint: "https://your-api-id.execute-api.region.amazonaws.com/dev/delete-files",
 };
 
 // Initialize search functionality
@@ -206,51 +265,47 @@ async function searchByThumbnailUrl() {
     return;
   }
 
-  // Extract filename from URL if it's a full S3 URL
+  // Extract filename from URL - handle both full S3 URLs and just filenames
   let thumbnailFilename = thumbnailUrl;
-  if (thumbnailUrl.includes("/")) {
-    thumbnailFilename = thumbnailUrl.split("/").pop();
+  if (thumbnailUrl.includes('/')) {
+    // Extract just the filename from the full S3 URL
+    thumbnailFilename = thumbnailUrl.split('/').pop();
   }
 
   // Validate that it's a thumbnail (has thumb_ prefix)
-  if (!thumbnailFilename.startsWith("thumb_")) {
-    showNotification(
-      "Please enter a valid thumbnail URL (should start with 'thumb_')",
-      "error"
-    );
+  if (!thumbnailFilename.startsWith('thumb_')) {
+    showNotification("Please enter a valid thumbnail URL (filename should start with 'thumb_')", "error");
     return;
   }
 
+  console.log("Original URL:", thumbnailUrl);
+  console.log("Extracted filename:", thumbnailFilename);
+
   try {
     showSearchLoading();
-
-    console.log("Searching for thumbnail:", thumbnailFilename);
-
-    // Call the real API
+    
+    // Call the real API with just the filename
     const results = await searchThumbnailAPI(thumbnailFilename);
-
+    
     if (results && results.links && results.links.length > 0) {
       // Convert API response to displayable format
       const displayResults = {
         results: results.links.map((fullImageUrl, index) => ({
           id: `thumbnail-result-${index}`,
-          filename: fullImageUrl.split("/").pop(),
+          filename: fullImageUrl.split('/').pop(),
           type: "image",
           tags: { detected: 1 }, // Placeholder since we don't get tags from this API
           thumbnailUrl: thumbnailUrl, // Original thumbnail URL
           fullUrl: fullImageUrl,
-          s3Key: fullImageUrl.split("/").slice(-2).join("/"), // Extract relative path
+          s3Key: fullImageUrl.split('/').slice(-2).join('/'), // Extract relative path
         })),
         total: results.links.length,
         searchType: "thumbnail",
         searchParams: { thumbnailUrl: thumbnailUrl },
       };
-
+      
       displaySearchResults(displayResults, "thumbnail");
-      showNotification(
-        `Found ${results.links.length} matching image(s)`,
-        "success"
-      );
+      showNotification(`Found ${results.links.length} matching image(s)`, "success");
     } else {
       // No results found
       const emptyResults = {
@@ -260,11 +315,9 @@ async function searchByThumbnailUrl() {
         searchParams: { thumbnailUrl: thumbnailUrl },
       };
       displaySearchResults(emptyResults, "thumbnail");
-      showNotification(
-        "No matching full-size image found for this thumbnail",
-        "info"
-      );
+      showNotification("No matching full-size image found for this thumbnail", "info");
     }
+    
   } catch (error) {
     console.error("Thumbnail search error:", error);
     showNotification("Search failed: " + error.message, "error");
@@ -272,47 +325,85 @@ async function searchByThumbnailUrl() {
   }
 }
 
-// NEW: Real API call for thumbnail search
+// NEW: Real API call for thumbnail search with Cognito authentication
 async function searchThumbnailAPI(thumbnailFilename) {
   try {
-    const authToken = getAuthenticationToken();
-
+    // Get Cognito ID token (not access token)
+    const idToken = getAuthenticationToken();
+    
+    if (!idToken) {
+      throw new Error("Authentication required. Please sign in to use this feature.");
+    }
+    
     // Build query parameters - your Lambda expects turl1, turl2, etc.
     const queryParams = new URLSearchParams({
-      turl1: thumbnailFilename,
+      turl1: thumbnailFilename.toLowerCase() // Convert to lowercase as your Lambda does
     });
-
-    const apiUrl = `${
-      SEARCH_API_CONFIG.thumbnailSearchEndpoint
-    }?${queryParams.toString()}`;
-
+    
+    const apiUrl = `${SEARCH_API_CONFIG.thumbnailSearchEndpoint}?${queryParams.toString()}`;
+    
     console.log("Calling API:", apiUrl);
-
+    console.log("Using Cognito ID token:", idToken ? "Yes" : "No");
+    console.log("Token preview:", idToken ? idToken.substring(0, 50) + "..." : "None");
+    
+    const requestHeaders = {
+      'Content-Type': 'application/json',
+      'Authorization': idToken, // For Cognito User Pool, use the ID token directly
+    };
+    
+    console.log("Request headers:", requestHeaders);
+    
     const response = await fetch(apiUrl, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        // Add auth header if needed
-        ...(authToken && { Authorization: `Bearer ${authToken}` }),
-      },
+      method: 'GET',
+      headers: requestHeaders,
+      mode: 'cors', // Enable CORS
     });
 
     console.log("API Response status:", response.status);
-
+    console.log("API Response headers:", [...response.headers.entries()]);
+    
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("API Error response:", errorText);
-      throw new Error(`API request failed: ${response.status} ${errorText}`);
+      let errorMessage = `HTTP ${response.status}`;
+      try {
+        const errorText = await response.text();
+        console.error("API Error response:", errorText);
+        errorMessage += `: ${errorText}`;
+      } catch (e) {
+        console.error("Could not read error response:", e);
+      }
+      
+      // Specific error handling for authentication issues
+      if (response.status === 401) {
+        throw new Error("Authentication token expired. Please sign out and sign in again.");
+      } else if (response.status === 403) {
+        throw new Error("Access denied. Please check your permissions or sign in again.");
+      }
+      
+      throw new Error(errorMessage);
     }
 
     const result = await response.json();
     console.log("API Response data:", result);
-
+    
     return result;
+    
   } catch (error) {
     console.error("API call failed:", error);
-    throw error;
+    
+    // Provide more specific error messages
+    if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+      throw new Error("Cannot connect to API. Check if you're signed in and try again.");
+    } else if (error.message.includes('401')) {
+      throw new Error("Authentication token expired. Please sign out and sign in again.");
+    } else if (error.message.includes('403')) {
+      throw new Error("Access denied. Please check your permissions.");
+    } else if (error.message.includes('404')) {
+      throw new Error("API endpoint not found. Check the API Gateway configuration.");
+    } else {
+      throw error;
+    }
   }
+} // ← FIXED: Added missing closing brace
 }
 
 async function searchByFileUpload() {
@@ -512,7 +603,7 @@ function displaySearchResults(results, searchType) {
     if (searchType === "thumbnail") {
       resultsTitle.textContent = "Full-Size Image Found";
       resultsCount.textContent = `Found matching full-size image`;
-
+      
       // Create a special display for thumbnail search results
       resultsContainer.innerHTML = results.results
         .map((file) => createThumbnailResultCard(file))
