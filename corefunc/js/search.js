@@ -10,19 +10,17 @@ const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
 // Configuration for search endpoints
 const SEARCH_API_CONFIG = {
-  // Thumbnail Search endpoints
+  // Existing endpoints
   thumbnailSearchEndpoint:
     "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/birdtag/search-t",
 
-  // Species endpoint
+  // UPDATED: Use search-s for BOTH species listing AND search functionality
   getSpeciesEndpoint:
-    "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/birdtag/species",
-
-  // Search by tags endpoint
+    "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/birdtag/search-s",
   searchByTagsEndpoint:
     "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/birdtag/search-s",
 
-  // Future endpoints
+  // Future endpoints (keep as is)
   searchByFileEndpoint:
     "https://your-api-id.execute-api.region.amazonaws.com/dev/birdtag/search-file",
   addTagsEndpoint:
