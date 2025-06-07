@@ -244,7 +244,7 @@ async function searchByTags() {
       }
 
       // Convert API response to displayable format
-      // Your API already provides the perfect format!
+      // Your API now provides: thumbnail_url, full_url (for viewing), and download_url (for downloading)
       const searchResults = {
         results: results.map((item, index) => {
           debugLog(`Processing result item ${index + 1}`, item);
@@ -259,7 +259,8 @@ async function searchByTags() {
               return acc;
             }, {}),
             thumbnailUrl: item.thumbnail_url,
-            fullUrl: item.full_url,
+            fullUrl: item.full_url, // For viewing (no download headers)
+            downloadUrl: item.download_url, // For downloading (with download headers)
             presignedUrl: item.thumbnail_url, // Use thumbnail URL as presigned URL
             s3Key: item.filename || `file-${index}`,
           };
@@ -539,7 +540,7 @@ function playFile(fileId) {
   }
 }
 
-// Enhanced downloadFile function - forces actual file download, not opening in tab
+// Enhanced downloadFile function - uses separate download URL
 async function downloadFile(fileId) {
   debugLog("=== Download File Function ===");
 
@@ -551,9 +552,9 @@ async function downloadFile(fileId) {
     return;
   }
 
-  // Use the FULL pre-signed URL (with auth parameters)
-  const downloadUrl = file.fullUrl;
-  debugLog("Download URL (pre-signed)", downloadUrl);
+  // Use the dedicated DOWNLOAD URL (with download headers)
+  const downloadUrl = file.downloadUrl || file.fullUrl; // Fallback to fullUrl if downloadUrl not available
+  debugLog("Download URL (with download headers)", downloadUrl);
 
   if (!downloadUrl) {
     showNotification("Download URL not available", "error");
@@ -561,8 +562,8 @@ async function downloadFile(fileId) {
   }
 
   try {
-    // Extract clean filename for download (remove thumb_ prefix if present)
-    let downloadFilename = file.filename || "download";
+    // Extract clean filename for download
+    let downloadFilename = file.filename || "download.jpg";
     if (downloadFilename.startsWith("thumb_")) {
       downloadFilename = downloadFilename.replace("thumb_", "");
     }
@@ -570,140 +571,209 @@ async function downloadFile(fileId) {
     debugLog("Download filename", downloadFilename);
 
     // Show immediate feedback
-    showNotification(`Starting download: ${downloadFilename}`, "info");
+    showNotification(`Download initiated: ${downloadFilename}`, "info");
 
-    // FORCE DOWNLOAD using fetch + blob - this bypasses S3's content-disposition headers
+    // Enhanced Method 1: Fetch with better error handling
     try {
-      debugLog("Fetching file data for forced download");
+      debugLog("Attempting fetch + blob download");
 
       const response = await fetch(downloadUrl, {
         method: "GET",
         mode: "cors",
+        cache: "no-cache",
         headers: {
-          Accept: "image/*,*/*",
+          Accept: "image/*,application/octet-stream,*/*",
         },
       });
 
       debugLog("Fetch response status:", response.status);
+      debugLog(
+        "Response headers:",
+        Object.fromEntries(response.headers.entries())
+      );
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      // Get the actual file data as blob
       const blob = await response.blob();
-      debugLog("Blob created successfully", {
-        size: blob.size,
-        type: blob.type,
-      });
+      debugLog("Blob created", { size: blob.size, type: blob.type });
 
-      // Create a blob URL that we control
+      // Force download using blob with better browser compatibility
+      if (window.navigator && window.navigator.msSaveOrOpenBlob) {
+        // IE/Edge
+        window.navigator.msSaveOrOpenBlob(blob, downloadFilename);
+        showNotification(`Download completed: ${downloadFilename}`, "success");
+        debugLog("IE/Edge download successful");
+        return;
+      }
+
+      // Modern browsers
       const blobUrl = window.URL.createObjectURL(blob);
       debugLog("Blob URL created:", blobUrl);
 
-      // Create download link that FORCES download behavior
-      const downloadLink = document.createElement("a");
-      downloadLink.href = blobUrl;
-      downloadLink.download = downloadFilename; // This forces download instead of navigation
-      downloadLink.style.display = "none";
-      downloadLink.style.visibility = "hidden";
+      // Create and trigger download link
+      const link = document.createElement("a");
+      link.style.display = "none";
+      link.href = blobUrl;
+      link.download = downloadFilename;
 
-      // Add to DOM, click immediately, then remove
-      document.body.appendChild(downloadLink);
+      // Add click event listener to ensure proper cleanup
+      link.addEventListener("click", function () {
+        debugLog("Download link clicked");
+        // Clean up after a short delay
+        setTimeout(() => {
+          window.URL.revokeObjectURL(blobUrl);
+          debugLog("Blob URL revoked");
+        }, 100);
+      });
 
-      // Force the download by clicking the link
-      downloadLink.click();
-
-      // Clean up immediately
-      document.body.removeChild(downloadLink);
-
-      // Clean up blob URL after a short delay
-      setTimeout(() => {
-        window.URL.revokeObjectURL(blobUrl);
-        debugLog("Blob URL cleaned up");
-      }, 1000);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
 
       showNotification(`Download started: ${downloadFilename}`, "success");
-      debugLog("Forced download successful using blob method");
+      debugLog("Modern browser download successful");
     } catch (fetchError) {
-      debugLog("Fetch method failed, trying alternative approach", fetchError);
+      debugLog("Fetch method failed", fetchError);
 
-      // Alternative approach: Try to force download using iframe
+      // Method 2: Try XMLHttpRequest approach
       try {
-        debugLog("Attempting iframe download method");
+        debugLog("Attempting XMLHttpRequest download");
 
-        // Create a hidden iframe to trigger download
-        const iframe = document.createElement("iframe");
-        iframe.style.display = "none";
-        iframe.style.visibility = "hidden";
-        iframe.src = downloadUrl;
+        const xhr = new XMLHttpRequest();
+        xhr.open("GET", downloadUrl, true);
+        xhr.responseType = "blob";
 
-        document.body.appendChild(iframe);
+        xhr.onload = function () {
+          if (xhr.status === 200) {
+            const blob = xhr.response;
+            debugLog("XHR blob created", { size: blob.size });
 
-        // Remove iframe after download starts
-        setTimeout(() => {
-          if (iframe.parentNode) {
-            document.body.removeChild(iframe);
+            // Create download
+            const blobUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.style.display = "none";
+            link.href = blobUrl;
+            link.download = downloadFilename;
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            window.URL.revokeObjectURL(blobUrl);
+
+            showNotification(
+              `Download completed: ${downloadFilename}`,
+              "success"
+            );
+            debugLog("XHR download successful");
+          } else {
+            throw new Error(`XHR failed with status ${xhr.status}`);
           }
-        }, 3000);
+        };
 
-        showNotification(`Download initiated: ${downloadFilename}`, "success");
-        debugLog("Iframe download method attempted");
-      } catch (iframeError) {
-        debugLog("Iframe method also failed", iframeError);
+        xhr.onerror = function () {
+          throw new Error("XHR request failed");
+        };
 
-        // Last resort: Use programmatic download with forced headers
-        try {
-          debugLog("Attempting programmatic download");
+        xhr.send();
+      } catch (xhrError) {
+        debugLog("XHR method failed", xhrError);
 
-          const link = document.createElement("a");
-          link.href = downloadUrl;
-          link.download = downloadFilename;
-          link.setAttribute("download", downloadFilename); // Force download attribute
-          link.style.display = "none";
-
-          // Try to prevent opening in new tab
-          link.addEventListener("click", function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            // Create a temporary URL that forces download
-            const tempLink = document.createElement("a");
-            tempLink.href = downloadUrl;
-            tempLink.download = downloadFilename;
-            tempLink.click();
-          });
-
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-
-          showNotification(
-            `Download attempted: ${downloadFilename}. If it opens in a tab, right-click and "Save As"`,
-            "info"
-          );
-          debugLog("Programmatic download attempted");
-        } catch (programmaticError) {
-          debugLog("All download methods failed", programmaticError);
-          showNotification(
-            "Download failed. The file will open in a new tab - please right-click and 'Save image as...'",
-            "error"
-          );
-
-          // Final fallback - open in new tab but warn user
-          window.open(downloadUrl, "_blank");
-        }
+        // Method 3: Open in new window with download instructions
+        debugLog("Opening download instructions modal");
+        showDownloadInstructionsModal(downloadUrl, downloadFilename);
       }
     }
   } catch (error) {
-    console.error("Download completely failed:", error);
-    debugLog("Download completely failed", error);
-    showNotification(
-      "Download failed due to browser security restrictions. Opening in new tab instead.",
-      "error"
-    );
-    window.open(downloadUrl, "_blank");
+    console.error("All download methods failed:", error);
+    debugLog("All download methods failed", error);
+    showDownloadInstructionsModal(downloadUrl, downloadFilename);
   }
+}
+
+// Helper function to show download instructions
+function showDownloadInstructionsModal(downloadUrl, filename) {
+  const modal = document.createElement("div");
+  modal.className = "download-instructions-modal";
+  modal.innerHTML = `
+    <div class="modal-content">
+      <h3>Manual Download Required</h3>
+      <p>Due to browser security restrictions, please follow these steps to download the file:</p>
+      <div class="download-steps">
+        <p><strong>Step 1:</strong> Click the button below to open the full-size image</p>
+        <p><strong>Step 2:</strong> Right-click on the image</p>
+        <p><strong>Step 3:</strong> Select "Save image as..." or "Save picture as..."</p>
+        <p><strong>Step 4:</strong> Choose your download location and save</p>
+      </div>
+      <div class="modal-buttons">
+        <button class="btn-open-image" onclick="window.open('${downloadUrl}', '_blank'); this.closest('.download-instructions-modal').remove();">
+          Open Full-Size Image
+        </button>
+        <button class="btn-close-modal" onclick="this.closest('.download-instructions-modal').remove();">
+          Close
+        </button>
+      </div>
+    </div>
+  `;
+
+  // Style the modal
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+  `;
+
+  const modalContent = modal.querySelector(".modal-content");
+  modalContent.style.cssText = `
+    background: white;
+    padding: 2rem;
+    border-radius: 0.5rem;
+    max-width: 500px;
+    margin: 1rem;
+    text-align: center;
+  `;
+
+  const steps = modal.querySelector(".download-steps");
+  steps.style.cssText = `
+    text-align: left;
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 0.25rem;
+    margin: 1rem 0;
+  `;
+
+  const buttons = modal.querySelectorAll("button");
+  buttons.forEach((button) => {
+    button.style.cssText = `
+      padding: 0.75rem 1.5rem;
+      margin: 0 0.5rem;
+      border: none;
+      border-radius: 0.25rem;
+      cursor: pointer;
+      font-weight: 500;
+    `;
+  });
+
+  const openBtn = modal.querySelector(".btn-open-image");
+  openBtn.style.backgroundColor = "#2563eb";
+  openBtn.style.color = "white";
+
+  const closeBtn = modal.querySelector(".btn-close-modal");
+  closeBtn.style.backgroundColor = "#6b7280";
+  closeBtn.style.color = "white";
+
+  document.body.appendChild(modal);
+
+  showNotification(`Manual download required for: ${filename}`, "info");
 }
 
 // Enhanced showFullPresignedUrl function
