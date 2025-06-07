@@ -3,11 +3,11 @@ let selectedFiles = [];
 let currentSearchResults = [];
 let searchUploadedFile = null;
 
-// Configuration for search endpoints - UPDATED WITH YOUR ACTUAL API ID
+// Configuration for search endpoints - UPDATED WITH CORRECT PATH
 const SEARCH_API_CONFIG = {
-  // Your actual API Gateway endpoint
+  // Fixed: Added /birdtag/ to the path to match your API Gateway structure
   thumbnailSearchEndpoint:
-    "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/search-t",
+    "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/birdtag/search-t",
 
   // Other endpoints (to be configured later)
   searchByTagsEndpoint:
@@ -279,7 +279,7 @@ async function searchByThumbnailUrl() {
 // NEW: Real API call for thumbnail search with Cognito authentication
 async function searchThumbnailAPI(thumbnailFilename) {
   try {
-    // Get Cognito ID token (not access token)
+    // Get Cognito ID token
     const idToken = getAuthenticationToken();
 
     if (!idToken) {
@@ -297,15 +297,25 @@ async function searchThumbnailAPI(thumbnailFilename) {
       SEARCH_API_CONFIG.thumbnailSearchEndpoint
     }?${queryParams.toString()}`;
 
+    // Try different authorization header formats
     const requestHeaders = {
       "Content-Type": "application/json",
-      Authorization: idToken, // For Cognito User Pool, use the ID token directly
     };
+
+    // Try different authorization formats that Cognito might expect
+    if (idToken.startsWith("Bearer ")) {
+      requestHeaders["Authorization"] = idToken; // Already has Bearer prefix
+    } else {
+      // Try both formats - some APIs expect Bearer prefix, some don't
+      requestHeaders["Authorization"] = idToken; // Direct token
+      // Uncomment next line if the above doesn't work:
+      // requestHeaders['Authorization'] = `Bearer ${idToken}`;
+    }
 
     const response = await fetch(apiUrl, {
       method: "GET",
       headers: requestHeaders,
-      mode: "cors", // Enable CORS
+      mode: "cors",
     });
 
     if (!response.ok) {
