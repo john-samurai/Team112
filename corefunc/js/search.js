@@ -415,11 +415,10 @@ function createResultCard(file, searchType) {
     )}</div>`;
   }
 
-  // Extract Full S3 URL for thumbnail (without query parameters)
+  // Extract FULL S3 URL for thumbnail (without query parameters) - NO SHORTENING
   const thumbnailS3Url = file.thumbnailUrl
     ? file.thumbnailUrl.split("?")[0]
     : "No thumbnail URL available";
-  const shortenedThumbnailUrl = shortenUrl(thumbnailS3Url);
 
   // Get action buttons based on file type
   const actionButtons = getActionButtons(file);
@@ -436,11 +435,11 @@ function createResultCard(file, searchType) {
         <div class="result-tags">${tagsDisplay}</div>
         <div class="result-file-type">${file.type.toUpperCase()}</div>
         
-        <!-- Full S3 URL for thumbnail -->
+        <!-- FULL S3 URL for thumbnail - NO SHORTENING -->
         <div class="result-url-section">
           <div class="url-label">Full S3 URL for thumbnail:</div>
-          <div class="shortened-path" title="${thumbnailS3Url}">
-            ${shortenedThumbnailUrl}
+          <div class="full-url-display" title="${thumbnailS3Url}">
+            ${thumbnailS3Url}
           </div>
         </div>
         
@@ -540,32 +539,67 @@ function playFile(fileId) {
   }
 }
 
-// Updated downloadFile function - properly downloads the full-size file
+// Updated downloadFile function - ensures proper download of full-size file
 function downloadFile(fileId) {
-  const file = currentSearchResults.find((f) => f.id === fileId);
-  if (file && file.fullUrl) {
-    // Create a temporary anchor element to trigger download
-    const link = document.createElement("a");
-    link.href = file.fullUrl;
+  debugLog("=== Download File Function ===");
 
-    // Extract filename from the full URL (without query parameters)
-    let downloadFilename = file.filename;
+  const file = currentSearchResults.find((f) => f.id === fileId);
+  debugLog("Found file for download", file);
+
+  if (!file) {
+    showNotification("File not found", "error");
+    return;
+  }
+
+  // Use fullUrl for download (this should be the full-size image URL)
+  const downloadUrl = file.fullUrl;
+  debugLog("Download URL", downloadUrl);
+
+  if (!downloadUrl) {
+    showNotification("Download URL not available", "error");
+    return;
+  }
+
+  try {
+    // Extract clean filename for download (remove thumb_ prefix if present)
+    let downloadFilename = file.filename || "download";
     if (downloadFilename.startsWith("thumb_")) {
-      // Remove "thumb_" prefix for download filename
       downloadFilename = downloadFilename.replace("thumb_", "");
     }
 
+    debugLog("Download filename", downloadFilename);
+
+    // Method 1: Try using download attribute (works for same-origin or CORS-enabled files)
+    const link = document.createElement("a");
+    link.href = downloadUrl;
     link.download = downloadFilename;
     link.style.display = "none";
 
-    // Add to DOM, click, and remove
+    // Add to DOM temporarily
     document.body.appendChild(link);
+
+    // Trigger download
     link.click();
+
+    // Clean up
     document.body.removeChild(link);
 
-    showNotification(`Downloading ${downloadFilename}`, "success");
-  } else {
-    showNotification("File not found or download URL not available", "error");
+    showNotification(`Starting download: ${downloadFilename}`, "success");
+    debugLog("Download initiated successfully");
+  } catch (error) {
+    console.error("Download failed:", error);
+
+    // Fallback: Open in new tab (user can manually save)
+    try {
+      window.open(downloadUrl, "_blank");
+      showNotification(
+        "Opening file in new tab - you can save it manually",
+        "info"
+      );
+    } catch (fallbackError) {
+      console.error("Fallback also failed:", fallbackError);
+      showNotification("Download failed. Please try again.", "error");
+    }
   }
 }
 

@@ -435,6 +435,23 @@
   margin-bottom: 0.5rem;
 }
 
+/* NEW: Full URL display (not shortened) */
+.full-url-display {
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: #4b5563;
+  word-break: break-all;
+  line-height: 1.4;
+  padding: 0.5rem;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
+  max-height: 80px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+
+/* Keep shortened-path for legacy support but hide if not used */
 .shortened-path {
   font-family: monospace;
   font-size: 0.75rem;
@@ -1120,6 +1137,11 @@
   }
 
   /* Mobile responsive for new URL section */
+  .full-url-display {
+    font-size: 0.7rem;
+    max-height: 60px;
+  }
+
   .shortened-path {
     font-size: 0.7rem;
     max-height: 45px;
