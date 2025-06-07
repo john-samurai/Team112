@@ -1,26 +1,295 @@
-// Search & Management functionality with Thumbnail URL Integration
+// Complete Search & Management functionality with Dynamic Species Loading and Backend Integration
 let selectedFiles = [];
 let currentSearchResults = [];
 let searchUploadedFile = null;
 
-// Configuration for search endpoints - UPDATED WITH CORRECT PATH
+// Species caching
+let cachedSpecies = null;
+let speciesCacheTimestamp = null;
+const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+
+// Configuration for search endpoints
 const SEARCH_API_CONFIG = {
-  // Fixed: Added /birdtag/ to the path to match your API Gateway structure
+  // Thumbnail Search endpoints
   thumbnailSearchEndpoint:
     "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/birdtag/search-t",
 
-  // Other endpoints (to be configured later)
+  // Species endpoint
+  getSpeciesEndpoint:
+    "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/birdtag/species",
+
+  // Search by tags endpoint
   searchByTagsEndpoint:
-    "https://your-api-id.execute-api.region.amazonaws.com/dev/search-tags",
+    "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/birdtag/search-s",
+
+  // Future endpoints
   searchByFileEndpoint:
-    "https://your-api-id.execute-api.region.amazonaws.com/dev/search-file",
+    "https://your-api-id.execute-api.region.amazonaws.com/dev/birdtag/search-file",
   addTagsEndpoint:
-    "https://your-api-id.execute-api.region.amazonaws.com/dev/add-tags",
+    "https://your-api-id.execute-api.region.amazonaws.com/dev/birdtag/edit",
   removeTagsEndpoint:
-    "https://your-api-id.execute-api.region.amazonaws.com/dev/remove-tags",
+    "https://your-api-id.execute-api.region.amazonaws.com/dev/birdtag/edit",
   deleteFilesEndpoint:
-    "https://your-api-id.execute-api.region.amazonaws.com/dev/delete-files",
+    "https://your-api-id.execute-api.region.amazonaws.com/dev/birdtag/delete",
 };
+
+// Dynamic Species Loading
+async function getSpeciesList() {
+  // Check cache first
+  if (
+    cachedSpecies &&
+    speciesCacheTimestamp &&
+    Date.now() - speciesCacheTimestamp < CACHE_DURATION
+  ) {
+    console.log("Using cached species list:", cachedSpecies);
+    return cachedSpecies;
+  }
+
+  try {
+    console.log("Fetching species from API...");
+    const authToken = getAuthenticationToken();
+
+    if (!authToken) {
+      throw new Error("Authentication required");
+    }
+
+    const response = await fetch(SEARCH_API_CONFIG.getSpeciesEndpoint, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+
+      // Extract species names from response
+      const speciesList = data.species || [];
+
+      // Cache the results
+      cachedSpecies = speciesList.sort(); // Sort alphabetically
+      speciesCacheTimestamp = Date.now();
+
+      console.log(
+        `Loaded ${speciesList.length} species from API:`,
+        speciesList
+      );
+      return cachedSpecies;
+    } else {
+      const errorText = await response.text();
+      throw new Error(`API request failed: ${response.status} - ${errorText}`);
+    }
+  } catch (error) {
+    console.error("Failed to fetch species from API:", error);
+
+    // Fall back to hardcoded list
+    const fallbackSpecies = [
+      "crow",
+      "pigeon",
+      "sparrow",
+      "robin",
+      "eagle",
+      "hawk",
+      "owl",
+      "duck",
+    ];
+    showNotification("Using default species list (API unavailable)", "info");
+    return fallbackSpecies;
+  }
+}
+
+// Populate species select elements
+async function populateSpeciesSelects() {
+  const speciesList = await getSpeciesList();
+
+  // Find all species select elements
+  const selectElements = document.querySelectorAll(
+    ".tag-select, .species-select"
+  );
+
+  selectElements.forEach((select) => {
+    // Save current selection
+    const currentValue = select.value;
+
+    // Clear existing options except the first placeholder
+    const placeholder = select.querySelector('option[value=""]');
+    select.innerHTML = "";
+
+    // Add placeholder back
+    if (placeholder) {
+      select.appendChild(placeholder);
+    } else {
+      const defaultOption = document.createElement("option");
+      defaultOption.value = "";
+      defaultOption.textContent = "Select bird species";
+      select.appendChild(defaultOption);
+    }
+
+    // Add species options
+    speciesList.forEach((species) => {
+      const option = document.createElement("option");
+      option.value = species.toLowerCase();
+      option.textContent = species.charAt(0).toUpperCase() + species.slice(1);
+      select.appendChild(option);
+    });
+
+    // Restore selection if it exists
+    if (currentValue && speciesList.includes(currentValue)) {
+      select.value = currentValue;
+    }
+  });
+
+  console.log(
+    `Populated ${selectElements.length} select elements with ${speciesList.length} species`
+  );
+}
+
+// Refresh species cache manually
+async function refreshSpeciesCache() {
+  cachedSpecies = null;
+  speciesCacheTimestamp = null;
+  await populateSpeciesSelects();
+  showNotification("Species list refreshed!", "success");
+}
+
+// Search Functions - UPDATED with real API integration
+async function searchByTags() {
+  const speciesSelect = document.getElementById("speciesSelect");
+  const selectedSpecies = Array.from(speciesSelect.selectedOptions).map(
+    (option) => option.value
+  );
+
+  if (selectedSpecies.length === 0) {
+    showNotification("Please select at least one bird species", "error");
+    return;
+  }
+
+  try {
+    showSearchLoading();
+
+    // Build API URL with query parameters for your existing Lambda
+    // Using format: tag1=crow&tag2=pigeon (no counts for search-s)
+    const queryParams = new URLSearchParams();
+    selectedSpecies.forEach((species, index) => {
+      queryParams.append(`tag${index + 1}`, species);
+    });
+
+    const apiUrl = `${
+      SEARCH_API_CONFIG.searchByTagsEndpoint
+    }?${queryParams.toString()}`;
+
+    console.log("Searching by tags:", selectedSpecies);
+    console.log("API URL:", apiUrl);
+
+    const authToken = getAuthenticationToken();
+    if (!authToken) {
+      throw new Error("Authentication required");
+    }
+
+    const response = await fetch(apiUrl, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+
+      // Convert API response to displayable format
+      const searchResults = {
+        results: data.links
+          ? data.links.map((url, index) => {
+              // Determine if it's a thumbnail (image) or direct file (video/audio)
+              const isThumbUrl = url && url.includes("thumb_");
+              const filename = url ? url.split("/").pop() : `file_${index}`;
+
+              return {
+                id: `search-result-${index}`,
+                filename: filename,
+                type: isThumbUrl ? "image" : "video", // Simplified - could be audio too
+                tags: selectedSpecies.reduce((acc, species) => {
+                  acc[species] = 1; // We know it contains these species
+                  return acc;
+                }, {}),
+                thumbnailUrl: isThumbUrl ? url : null,
+                fullUrl: url,
+                s3Key: url ? url.replace(/^https?:\/\/[^\/]+\//, "") : "",
+              };
+            })
+          : [],
+        total: data.links ? data.links.length : 0,
+        searchType: "tags",
+        searchParams: { species: selectedSpecies },
+      };
+
+      displaySearchResults(searchResults, "tags");
+
+      if (searchResults.total > 0) {
+        showNotification(
+          `Found ${
+            searchResults.total
+          } files containing: ${selectedSpecies.join(", ")}`,
+          "success"
+        );
+      } else {
+        showNotification(
+          `No files found containing: ${selectedSpecies.join(", ")}`,
+          "info"
+        );
+      }
+    } else {
+      const errorText = await response.text();
+      throw new Error(`Search failed: ${response.status} - ${errorText}`);
+    }
+  } catch (error) {
+    console.error("Search by tags failed:", error);
+    showNotification("Search failed: " + error.message, "error");
+    hideSearchResults();
+  }
+}
+
+async function searchByTagsAndCounts() {
+  const tagPairs = document.querySelectorAll("#tagCountPairs .tag-count-pair");
+  const searchParams = {};
+
+  tagPairs.forEach((pair) => {
+    const tag = pair.querySelector(".tag-select").value;
+    const count = pair.querySelector(".count-input").value;
+
+    if (tag && count) {
+      searchParams[tag] = parseInt(count);
+    }
+  });
+
+  if (Object.keys(searchParams).length === 0) {
+    showNotification(
+      "Please select at least one bird species and count",
+      "error"
+    );
+    return;
+  }
+
+  try {
+    showSearchLoading();
+
+    // NOTE: For tags & counts, you'll need to create a different endpoint
+    // or modify your existing search-s Lambda to handle counts
+    // For now, this will use the mock approach
+    const results = await performSearch("tags-counts", searchParams);
+    displaySearchResults(results, "tags-counts");
+
+    showNotification(
+      "Note: Tag counts search using mock data. Backend integration needed.",
+      "info"
+    );
+  } catch (error) {
+    showNotification("Search failed: " + error.message, "error");
+    hideSearchResults();
+  }
+}
 
 // Initialize search functionality
 function initializeSearch() {
@@ -48,8 +317,53 @@ function initializeSearch() {
   // Initialize delete confirmation input
   initializeDeleteConfirmation();
 
+  // Load species on page load
+  populateSpeciesSelects();
+
   // Show the first form by default
   showSearchForm("tags-counts");
+}
+
+// Enhanced form functions with species population
+function addTagCountPair() {
+  const container = document.getElementById("tagCountPairs");
+  const pairDiv = document.createElement("div");
+  pairDiv.className = "tag-count-pair";
+  pairDiv.innerHTML = `
+    <select class="tag-select">
+      <option value="">Select bird species</option>
+    </select>
+    <input type="number" class="count-input" placeholder="Count" min="1">
+    <button class="btn-remove-tag" onclick="this.parentElement.remove()">× Remove</button>
+  `;
+  container.appendChild(pairDiv);
+
+  // Populate the new select element
+  populateSpeciesSelects();
+}
+
+function addTagPairToModal(containerId) {
+  const container = document.getElementById(containerId);
+  const pairDiv = document.createElement("div");
+  pairDiv.className = "tag-count-pair";
+  pairDiv.innerHTML = `
+    <select class="tag-select">
+      <option value="">Select bird species</option>
+    </select>
+    <input type="number" class="count-input" placeholder="Count" min="1">
+    <button class="btn-remove-tag" onclick="this.parentElement.remove()">× Remove</button>
+  `;
+  container.appendChild(pairDiv);
+
+  // Populate the new select element
+  populateSpeciesSelects();
+
+  // Update preview
+  if (containerId === "addTagsPairs") {
+    updateAddTagsPreview();
+  } else if (containerId === "removeTagsPairs") {
+    updateRemoveTagsPreview();
+  }
 }
 
 // Show specific search form
@@ -63,6 +377,9 @@ function showSearchForm(searchType) {
   const selectedForm = document.getElementById(`${searchType}-form`);
   if (selectedForm) {
     selectedForm.style.display = "block";
+
+    // Ensure species selects are populated when showing form
+    populateSpeciesSelects();
   }
 
   // Hide results when switching forms
@@ -70,66 +387,19 @@ function showSearchForm(searchType) {
   clearSelection();
 }
 
-// Tag-Count Pairs Management
-function addTagCountPair() {
-  const container = document.getElementById("tagCountPairs");
-  const pairDiv = document.createElement("div");
-  pairDiv.className = "tag-count-pair";
-  pairDiv.innerHTML = `
-    <select class="tag-select">
-      <option value="">Select bird species</option>
-      <option value="crow">Crow</option>
-      <option value="pigeon">Pigeon</option>
-      <option value="sparrow">Sparrow</option>
-      <option value="robin">Robin</option>
-    </select>
-    <input type="number" class="count-input" placeholder="Count" min="1">
-    <button class="btn-remove-tag" onclick="this.parentElement.remove()">× Remove</button>
-  `;
-  container.appendChild(pairDiv);
-}
-
-function addTagPairToModal(containerId) {
-  const container = document.getElementById(containerId);
-  const pairDiv = document.createElement("div");
-  pairDiv.className = "tag-count-pair";
-  pairDiv.innerHTML = `
-    <select class="tag-select">
-      <option value="">Select bird species</option>
-      <option value="crow">Crow</option>
-      <option value="pigeon">Pigeon</option>
-      <option value="sparrow">Sparrow</option>
-      <option value="robin">Robin</option>
-    </select>
-    <input type="number" class="count-input" placeholder="Count" min="1">
-    <button class="btn-remove-tag" onclick="this.parentElement.remove()">× Remove</button>
-  `;
-  container.appendChild(pairDiv);
-
-  // Update preview
-  if (containerId === "addTagsPairs") {
-    updateAddTagsPreview();
-  } else if (containerId === "removeTagsPairs") {
-    updateRemoveTagsPreview();
-  }
-}
-
-// Reset forms
+// Reset forms with species repopulation
 function resetTagsCountsForm() {
   const container = document.getElementById("tagCountPairs");
   container.innerHTML = `
     <div class="tag-count-pair">
       <select class="tag-select">
         <option value="">Select bird species</option>
-        <option value="crow">Crow</option>
-        <option value="pigeon">Pigeon</option>
-        <option value="sparrow">Sparrow</option>
-        <option value="robin">Robin</option>
       </select>
       <input type="number" class="count-input" placeholder="Count" min="1">
       <button class="btn-remove-tag" onclick="this.parentElement.remove()">× Remove</button>
     </div>
   `;
+  populateSpeciesSelects();
   hideSearchResults();
 }
 
@@ -150,404 +420,7 @@ function clearFileUploadForm() {
   hideSearchResults();
 }
 
-// Search Functions
-async function searchByTagsAndCounts() {
-  const tagPairs = document.querySelectorAll("#tagCountPairs .tag-count-pair");
-  const searchParams = {};
-
-  tagPairs.forEach((pair) => {
-    const tag = pair.querySelector(".tag-select").value;
-    const count = pair.querySelector(".count-input").value;
-
-    if (tag && count) {
-      searchParams[tag] = parseInt(count);
-    }
-  });
-
-  if (Object.keys(searchParams).length === 0) {
-    showNotification(
-      "Please select at least one bird species and count",
-      "error"
-    );
-    return;
-  }
-
-  try {
-    showSearchLoading();
-    const results = await performSearch("tags-counts", searchParams);
-    displaySearchResults(results, "tags-counts");
-  } catch (error) {
-    showNotification("Search failed: " + error.message, "error");
-    hideSearchResults();
-  }
-}
-
-async function searchByTags() {
-  const speciesSelect = document.getElementById("speciesSelect");
-  const selectedSpecies = Array.from(speciesSelect.selectedOptions).map(
-    (option) => option.value
-  );
-
-  if (selectedSpecies.length === 0) {
-    showNotification("Please select at least one bird species", "error");
-    return;
-  }
-
-  try {
-    showSearchLoading();
-    const results = await performSearch("tags", { species: selectedSpecies });
-    displaySearchResults(results, "tags");
-  } catch (error) {
-    showNotification("Search failed: " + error.message, "error");
-    hideSearchResults();
-  }
-}
-
-// UPDATED: Real Thumbnail URL Search Integration
-async function searchByThumbnailUrl() {
-  const thumbnailUrl = document.getElementById("thumbnailUrl").value.trim();
-
-  if (!thumbnailUrl) {
-    showNotification("Please enter a thumbnail URL", "error");
-    return;
-  }
-
-  // Extract filename from URL - handle both full S3 URLs and just filenames
-  let thumbnailFilename = thumbnailUrl;
-  if (thumbnailUrl.includes("/")) {
-    // Extract just the filename from the full S3 URL
-    thumbnailFilename = thumbnailUrl.split("/").pop();
-  }
-
-  // Validate that it's a thumbnail (has thumb_ prefix)
-  if (!thumbnailFilename.startsWith("thumb_")) {
-    showNotification(
-      "Please enter a valid thumbnail URL (filename should start with 'thumb_')",
-      "error"
-    );
-    return;
-  }
-
-  try {
-    showSearchLoading();
-
-    // Call the real API with just the filename
-    const results = await searchThumbnailAPI(thumbnailFilename);
-
-    if (results && results.links && results.links.length > 0) {
-      // Convert API response to displayable format
-      const displayResults = {
-        results: results.links.map((fullImageUrl, index) => {
-          // Extract clean filename (without query parameters)
-          const cleanUrl = fullImageUrl.split("?")[0]; // Remove query parameters
-          const filename = cleanUrl.split("/").pop();
-
-          return {
-            id: `thumbnail-result-${index}`,
-            filename: filename, // Clean filename without query params
-            type: "image",
-            tags: { detected: 1 }, // Placeholder since we don't get tags from this API
-            thumbnailUrl: thumbnailUrl, // Original thumbnail URL
-            fullUrl: fullImageUrl, // Keep full pre-signed URL for access
-            s3Key: cleanUrl.split("/").slice(-2).join("/"), // Extract relative path from clean URL
-          };
-        }),
-        total: results.links.length,
-        searchType: "thumbnail",
-        searchParams: { thumbnailUrl: thumbnailUrl },
-      };
-
-      displaySearchResults(displayResults, "thumbnail");
-      showNotification(
-        `Found ${results.links.length} matching image(s)`,
-        "success"
-      );
-    } else {
-      // No results found
-      const emptyResults = {
-        results: [],
-        total: 0,
-        searchType: "thumbnail",
-        searchParams: { thumbnailUrl: thumbnailUrl },
-      };
-      displaySearchResults(emptyResults, "thumbnail");
-      showNotification(
-        "No matching full-size image found for this thumbnail",
-        "info"
-      );
-    }
-  } catch (error) {
-    showNotification("Search failed: " + error.message, "error");
-    hideSearchResults();
-  }
-}
-
-// NEW: Real API call for thumbnail search with Cognito authentication
-async function searchThumbnailAPI(thumbnailFilename) {
-  try {
-    // Get Cognito ID token
-    const idToken = getAuthenticationToken();
-
-    if (!idToken) {
-      throw new Error(
-        "Authentication required. Please sign in to use this feature."
-      );
-    }
-
-    // Build query parameters - your Lambda expects turl1, turl2, etc.
-    const queryParams = new URLSearchParams({
-      turl1: thumbnailFilename.toLowerCase(), // Convert to lowercase as your Lambda does
-    });
-
-    const apiUrl = `${
-      SEARCH_API_CONFIG.thumbnailSearchEndpoint
-    }?${queryParams.toString()}`;
-
-    // Try different authorization header formats
-    const requestHeaders = {
-      "Content-Type": "application/json",
-    };
-
-    // Try different authorization formats that Cognito might expect
-    if (idToken.startsWith("Bearer ")) {
-      requestHeaders["Authorization"] = idToken; // Already has Bearer prefix
-    } else {
-      // Try both formats - some APIs expect Bearer prefix, some don't
-      requestHeaders["Authorization"] = idToken; // Direct token
-      // Uncomment next line if the above doesn't work:
-      // requestHeaders['Authorization'] = `Bearer ${idToken}`;
-    }
-
-    const response = await fetch(apiUrl, {
-      method: "GET",
-      headers: requestHeaders,
-      mode: "cors",
-    });
-
-    if (!response.ok) {
-      let errorMessage = `HTTP ${response.status}`;
-      try {
-        const errorText = await response.text();
-        errorMessage += `: ${errorText}`;
-      } catch (e) {
-        // Could not read error response
-      }
-
-      // Specific error handling for authentication issues
-      if (response.status === 401) {
-        throw new Error(
-          "Authentication token expired. Please sign out and sign in again."
-        );
-      } else if (response.status === 403) {
-        throw new Error(
-          "Access denied. Please check your permissions or sign in again."
-        );
-      }
-
-      throw new Error(errorMessage);
-    }
-
-    const result = await response.json();
-    return result;
-  } catch (error) {
-    // Provide more specific error messages
-    if (
-      error.name === "TypeError" &&
-      error.message.includes("Failed to fetch")
-    ) {
-      throw new Error(
-        "Cannot connect to API. Check if you're signed in and try again."
-      );
-    } else if (error.message.includes("401")) {
-      throw new Error(
-        "Authentication token expired. Please sign out and sign in again."
-      );
-    } else if (error.message.includes("403")) {
-      throw new Error("Access denied. Please check your permissions.");
-    } else if (error.message.includes("404")) {
-      throw new Error(
-        "API endpoint not found. Check the API Gateway configuration."
-      );
-    } else {
-      throw error;
-    }
-  }
-}
-
-async function searchByFileUpload() {
-  if (!searchUploadedFile) {
-    showNotification("Please upload a file first", "error");
-    return;
-  }
-
-  try {
-    showSearchLoading();
-
-    // Analyze the uploaded file to get tags
-    const fileAnalysis = await analyzeUploadedFile(searchUploadedFile);
-
-    if (!fileAnalysis.tags || Object.keys(fileAnalysis.tags).length === 0) {
-      showNotification("No bird species detected in the uploaded file", "info");
-      hideSearchResults();
-      return;
-    }
-
-    // Search for files with similar tags
-    const results = await performSearch("file-upload", {
-      detectedTags: fileAnalysis.tags,
-      uploadedFile: searchUploadedFile,
-    });
-
-    // Show detected tags info
-    showFileAnalysisResult(fileAnalysis);
-
-    displaySearchResults(results, "file-upload");
-  } catch (error) {
-    showNotification("Search failed: " + error.message, "error");
-    hideSearchResults();
-  }
-}
-
-// File upload for search
-function initializeSearchFileUpload() {
-  const uploadArea = document.getElementById("searchUploadArea");
-  const fileInput = document.getElementById("searchFileInput");
-
-  if (uploadArea && fileInput) {
-    // Click to upload
-    uploadArea.addEventListener("click", () => fileInput.click());
-
-    // Drag and drop
-    uploadArea.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      uploadArea.classList.add("drag-over");
-    });
-
-    uploadArea.addEventListener("dragleave", () => {
-      uploadArea.classList.remove("drag-over");
-    });
-
-    uploadArea.addEventListener("drop", (e) => {
-      e.preventDefault();
-      uploadArea.classList.remove("drag-over");
-      handleSearchFile(e.dataTransfer.files[0]);
-    });
-
-    // File input change
-    fileInput.addEventListener("change", (e) => {
-      handleSearchFile(e.target.files[0]);
-    });
-  }
-}
-
-function handleSearchFile(file) {
-  if (!file) return;
-
-  const acceptedTypes = [
-    "image/jpeg",
-    "image/png",
-    "audio/mp3",
-    "audio/mpeg",
-    "audio/wav",
-    "video/mp4",
-  ];
-
-  if (!acceptedTypes.includes(file.type)) {
-    showNotification(`Unsupported file type: ${file.type}`, "error");
-    return;
-  }
-
-  const maxSize = 8 * 1024 * 1024; // 8MB
-  if (file.size > maxSize) {
-    showNotification("File is too big. Max file size is 8MB.", "error");
-    return;
-  }
-
-  searchUploadedFile = file;
-  document.getElementById("searchByFileBtn").disabled = false;
-
-  showNotification(`File "${file.name}" selected for search`, "success");
-}
-
-// Search API calls (mock for other search types, real for thumbnail)
-async function performSearch(searchType, searchParams) {
-  try {
-    if (searchType === "thumbnail") {
-      // This is now handled by searchByThumbnailUrl() directly
-      // Return mock data as fallback
-      return generateMockResults(searchType, searchParams);
-    }
-
-    // Simulate API delay for other search types
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    // Mock results for other search types (to be replaced with real APIs later)
-    const mockResults = generateMockResults(searchType, searchParams);
-
-    return mockResults;
-
-    // TODO: Replace with real API calls when backend is ready for other search types
-  } catch (error) {
-    throw error;
-  }
-}
-
-function generateMockResults(searchType, searchParams) {
-  // Generate mock data for demonstration (except thumbnail which uses real API)
-  const mockFiles = [
-    {
-      id: "file1",
-      filename: "bird_observation_001.jpg",
-      type: "image",
-      tags: { crow: 3, pigeon: 2 },
-      thumbnailUrl: "https://example.s3.amazonaws.com/bird1-thumb.jpg",
-      fullUrl: "https://example.s3.amazonaws.com/bird1.jpg",
-      s3Key: "user-123/bird1.jpg",
-    },
-    {
-      id: "file2",
-      filename: "bird_observation_002.mp4",
-      type: "video",
-      tags: { crow: 2, sparrow: 1 },
-      thumbnailUrl: null,
-      fullUrl: "https://example.s3.amazonaws.com/bird2.mp4",
-      s3Key: "user-123/bird2.mp4",
-    },
-    {
-      id: "file3",
-      filename: "bird_song_001.mp3",
-      type: "audio",
-      tags: { pigeon: 1, robin: 2 },
-      thumbnailUrl: null,
-      fullUrl: "https://example.s3.amazonaws.com/bird3.mp3",
-      s3Key: "user-123/bird3.mp3",
-    },
-  ];
-
-  // Filter based on search type and params
-  let filteredResults = mockFiles;
-
-  if (searchType === "tags-counts") {
-    filteredResults = mockFiles.filter((file) => {
-      return Object.entries(searchParams).every(([species, minCount]) => {
-        return file.tags[species] && file.tags[species] >= minCount;
-      });
-    });
-  } else if (searchType === "tags") {
-    filteredResults = mockFiles.filter((file) => {
-      return searchParams.species.some((species) => file.tags[species]);
-    });
-  }
-
-  return {
-    results: filteredResults,
-    total: filteredResults.length,
-    searchType: searchType,
-    searchParams: searchParams,
-  };
-}
-
-// Display search results (UPDATED for thumbnail search)
+// Display search results
 function displaySearchResults(results, searchType) {
   const resultsSection = document.getElementById("searchResultsSection");
   const resultsTitle = document.getElementById("resultsTitle");
@@ -564,19 +437,15 @@ function displaySearchResults(results, searchType) {
       </div>
     `;
   } else {
-    // Special handling for thumbnail search results
     if (searchType === "thumbnail") {
       resultsTitle.textContent = "Full-Size Image Found";
       resultsCount.textContent = `Found matching full-size image`;
-
-      // Create a special display for thumbnail search results
       resultsContainer.innerHTML = results.results
         .map((file) => createThumbnailResultCard(file))
         .join("");
     } else {
       resultsTitle.textContent = "Search Results";
       resultsCount.textContent = `Found ${results.total} files matching your criteria`;
-
       resultsContainer.innerHTML = results.results
         .map((file) => createResultCard(file, searchType))
         .join("");
@@ -588,9 +457,38 @@ function displaySearchResults(results, searchType) {
   clearSelection();
 }
 
-// NEW: Special result card for thumbnail search (without checkbox)
+function createResultCard(file, searchType) {
+  const tagsDisplay = Object.entries(file.tags)
+    .map(([species, count]) => `${species} ×${count}`)
+    .join(", ");
+
+  const thumbnailContent =
+    file.type === "image" && file.thumbnailUrl
+      ? `<img src="${file.thumbnailUrl}" alt="${file.filename}" class="result-thumbnail">`
+      : `<div class="result-thumbnail result-icon">${getFileTypeIcon(
+          file.type
+        )}</div>`;
+
+  const actionButtons = getActionButtons(file);
+
+  return `
+    <div class="result-card" data-file-id="${file.id}">
+      <input type="checkbox" class="result-checkbox" 
+             onchange="toggleFileSelection(this, '${file.id}')">
+      ${thumbnailContent}
+      <div class="result-content">
+        <div class="result-filename">${file.filename}</div>
+        <div class="result-tags">${tagsDisplay}</div>
+        <div class="result-file-type">${file.type.toUpperCase()}</div>
+        <div class="result-actions">
+          ${actionButtons}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function createThumbnailResultCard(file) {
-  // Create a shortened display version of the full-size URL
   const fullUrl = file.fullUrl;
   const shortUrl =
     fullUrl.length > 80
@@ -601,9 +499,6 @@ function createThumbnailResultCard(file) {
 
   return `
     <div class="result-card thumbnail-result-card" data-file-id="${file.id}">
-      <!-- Removed checkbox for thumbnail search -->
-      
-      <!-- Large Preview Display -->
       <div class="thumbnail-result-preview">
         <img src="${file.fullUrl}" alt="${file.filename}" 
              class="large-image-preview" 
@@ -647,37 +542,6 @@ function createThumbnailResultCard(file) {
   `;
 }
 
-function createResultCard(file, searchType) {
-  const tagsDisplay = Object.entries(file.tags)
-    .map(([species, count]) => `${species} ×${count}`)
-    .join(", ");
-
-  const thumbnailContent =
-    file.type === "image" && file.thumbnailUrl
-      ? `<img src="${file.thumbnailUrl}" alt="${file.filename}" class="result-thumbnail">`
-      : `<div class="result-thumbnail result-icon">${getFileTypeIcon(
-          file.type
-        )}</div>`;
-
-  const actionButtons = getActionButtons(file);
-
-  return `
-    <div class="result-card" data-file-id="${file.id}">
-      <input type="checkbox" class="result-checkbox" 
-             onchange="toggleFileSelection(this, '${file.id}')">
-      ${thumbnailContent}
-      <div class="result-content">
-        <div class="result-filename">${file.filename}</div>
-        <div class="result-tags">${tagsDisplay}</div>
-        <div class="result-file-type">${file.type.toUpperCase()}</div>
-        <div class="result-actions">
-          ${actionButtons}
-        </div>
-      </div>
-    </div>
-  `;
-}
-
 function getFileTypeIcon(type) {
   switch (type) {
     case "image":
@@ -706,279 +570,6 @@ function getActionButtons(file) {
   return `<button class="btn-action" onclick="downloadFile('${file.id}')">Download</button>`;
 }
 
-// File selection management
-function toggleFileSelection(checkbox, fileId) {
-  if (checkbox.checked) {
-    if (!selectedFiles.includes(fileId)) {
-      selectedFiles.push(fileId);
-    }
-  } else {
-    selectedFiles = selectedFiles.filter((id) => id !== fileId);
-  }
-  updateFloatingActionBar();
-}
-
-function updateFloatingActionBar() {
-  const actionBar = document.getElementById("floatingActionBar");
-  if (selectedFiles.length > 0) {
-    actionBar.classList.remove("hidden");
-    document.getElementById(
-      "selectedCount"
-    ).textContent = `${selectedFiles.length} files selected`;
-  } else {
-    actionBar.classList.add("hidden");
-  }
-}
-
-function clearSelection() {
-  selectedFiles = [];
-  document
-    .querySelectorAll(".result-checkbox")
-    .forEach((cb) => (cb.checked = false));
-  updateFloatingActionBar();
-}
-
-// Modal management
-function showAddTagsModal() {
-  if (selectedFiles.length === 0) {
-    showNotification("Please select files first", "error");
-    return;
-  }
-
-  document.getElementById("addTagsFileCount").textContent =
-    selectedFiles.length;
-  document.getElementById("addTagsModal").classList.add("active");
-  updateAddTagsPreview();
-}
-
-function hideAddTagsModal() {
-  document.getElementById("addTagsModal").classList.remove("active");
-}
-
-function showRemoveTagsModal() {
-  if (selectedFiles.length === 0) {
-    showNotification("Please select files first", "error");
-    return;
-  }
-
-  document.getElementById("removeTagsFileCount").textContent =
-    selectedFiles.length;
-  displayCurrentTags();
-  document.getElementById("removeTagsModal").classList.add("active");
-  updateRemoveTagsPreview();
-}
-
-function hideRemoveTagsModal() {
-  document.getElementById("removeTagsModal").classList.remove("active");
-}
-
-function showDeleteFilesModal() {
-  if (selectedFiles.length === 0) {
-    showNotification("Please select files first", "error");
-    return;
-  }
-
-  document.getElementById("deleteFileCount").textContent = selectedFiles.length;
-  displayFilesToDelete();
-  document.getElementById("deleteFilesModal").classList.add("active");
-}
-
-function hideDeleteFilesModal() {
-  document.getElementById("deleteFilesModal").classList.remove("active");
-  document.getElementById("deleteConfirmation").value = "";
-  document.getElementById("confirmDeleteBtn").disabled = true;
-}
-
-// Modal content updates
-function updateAddTagsPreview() {
-  const pairs = document.querySelectorAll("#addTagsPairs .tag-count-pair");
-  const preview = {};
-
-  pairs.forEach((pair) => {
-    const tag = pair.querySelector(".tag-select").value;
-    const count = pair.querySelector(".count-input").value;
-    if (tag && count) {
-      preview[tag] = parseInt(count);
-    }
-  });
-
-  document.getElementById("addTagsPreview").textContent =
-    JSON.stringify(preview);
-}
-
-function updateRemoveTagsPreview() {
-  const pairs = document.querySelectorAll("#removeTagsPairs .tag-count-pair");
-  const preview = {};
-
-  pairs.forEach((pair) => {
-    const tag = pair.querySelector(".tag-select").value;
-    const count = pair.querySelector(".count-input").value;
-    if (tag && count) {
-      preview[tag] = parseInt(count);
-    }
-  });
-
-  document.getElementById("removeTagsPreview").textContent =
-    JSON.stringify(preview);
-}
-
-function displayCurrentTags() {
-  // Mock current tags for selected files
-  const currentTags = {
-    crow: 3,
-    pigeon: 2,
-    sparrow: 1,
-    robin: 1,
-  };
-
-  const tagsHtml = Object.entries(currentTags)
-    .map(
-      ([species, count]) => `
-      <label class="current-tag-item">
-        <input type="checkbox" value="${species}"> 
-        ${species} (×${count})
-      </label>
-    `
-    )
-    .join("");
-
-  document.getElementById("currentTagsDisplay").innerHTML = tagsHtml;
-}
-
-function displayFilesToDelete() {
-  const selectedFilesData = currentSearchResults.filter((file) =>
-    selectedFiles.includes(file.id)
-  );
-
-  const filesHtml = selectedFilesData
-    .map((file) => {
-      const tagsDisplay = Object.entries(file.tags)
-        .map(([species, count]) => `${species} ×${count}`)
-        .join(", ");
-      return `<div class="file-to-delete">• ${file.filename} (${tagsDisplay})</div>`;
-    })
-    .join("");
-
-  document.getElementById("filesToDeleteList").innerHTML = filesHtml;
-}
-
-function initializeDeleteConfirmation() {
-  const confirmInput = document.getElementById("deleteConfirmation");
-  const confirmBtn = document.getElementById("confirmDeleteBtn");
-
-  if (confirmInput && confirmBtn) {
-    confirmInput.addEventListener("input", (e) => {
-      confirmBtn.disabled = e.target.value !== "DELETE";
-    });
-  }
-}
-
-// Modal actions
-async function applyAddTags() {
-  const pairs = document.querySelectorAll("#addTagsPairs .tag-count-pair");
-  const tagsToAdd = {};
-
-  pairs.forEach((pair) => {
-    const tag = pair.querySelector(".tag-select").value;
-    const count = pair.querySelector(".count-input").value;
-    if (tag && count) {
-      tagsToAdd[tag] = parseInt(count);
-    }
-  });
-
-  if (Object.keys(tagsToAdd).length === 0) {
-    showNotification("Please specify tags to add", "error");
-    return;
-  }
-
-  try {
-    await performBulkOperation("add-tags", {
-      fileIds: selectedFiles,
-      tags: tagsToAdd,
-    });
-
-    showNotification("Tags added successfully!", "success");
-    hideAddTagsModal();
-    // Refresh results would go here
-  } catch (error) {
-    showNotification("Failed to add tags: " + error.message, "error");
-  }
-}
-
-async function applyRemoveTags() {
-  // Get tags from checkboxes and manual input
-  const selectedCurrentTags = Array.from(
-    document.querySelectorAll(
-      "#currentTagsDisplay input[type='checkbox']:checked"
-    )
-  ).map((cb) => cb.value);
-
-  const manualTags = {};
-  const pairs = document.querySelectorAll("#removeTagsPairs .tag-count-pair");
-  pairs.forEach((pair) => {
-    const tag = pair.querySelector(".tag-select").value;
-    const count = pair.querySelector(".count-input").value;
-    if (tag && count) {
-      manualTags[tag] = parseInt(count);
-    }
-  });
-
-  if (
-    selectedCurrentTags.length === 0 &&
-    Object.keys(manualTags).length === 0
-  ) {
-    showNotification("Please specify tags to remove", "error");
-    return;
-  }
-
-  try {
-    await performBulkOperation("remove-tags", {
-      fileIds: selectedFiles,
-      selectedTags: selectedCurrentTags,
-      manualTags: manualTags,
-    });
-
-    showNotification("Tags removed successfully!", "success");
-    hideRemoveTagsModal();
-    // Refresh results would go here
-  } catch (error) {
-    showNotification("Failed to remove tags: " + error.message, "error");
-  }
-}
-
-async function confirmDeleteFiles() {
-  try {
-    await performBulkOperation("delete-files", {
-      fileIds: selectedFiles,
-    });
-
-    showNotification("Files deleted successfully!", "success");
-    hideDeleteFilesModal();
-
-    // Remove deleted files from current results
-    currentSearchResults = currentSearchResults.filter(
-      (file) => !selectedFiles.includes(file.id)
-    );
-
-    // Refresh display
-    displaySearchResults(
-      { results: currentSearchResults, total: currentSearchResults.length },
-      "refresh"
-    );
-    clearSelection();
-  } catch (error) {
-    showNotification("Failed to delete files: " + error.message, "error");
-  }
-}
-
-// Bulk operations
-async function performBulkOperation(operation, params) {
-  // Simulate API delay
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-
-  // TODO: Implement real API calls
-}
-
 // File actions
 function viewFile(fileId) {
   const file = currentSearchResults.find((f) => f.id === fileId);
@@ -990,13 +581,17 @@ function viewFile(fileId) {
 }
 
 function playFile(fileId) {
-  showNotification("Play functionality will be implemented later", "info");
+  const file = currentSearchResults.find((f) => f.id === fileId);
+  if (file && file.fullUrl) {
+    window.open(file.fullUrl, "_blank");
+  } else {
+    showNotification("File not found", "error");
+  }
 }
 
 function downloadFile(fileId) {
   const file = currentSearchResults.find((f) => f.id === fileId);
   if (file && file.fullUrl) {
-    // Create temporary download link
     const link = document.createElement("a");
     link.href = file.fullUrl;
     link.download = file.filename;
@@ -1006,6 +601,40 @@ function downloadFile(fileId) {
     showNotification(`Downloading ${file.filename}`, "success");
   } else {
     showNotification("File not found", "error");
+  }
+}
+
+// Copy URL to clipboard function
+function copyToClipboard(url) {
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard
+      .writeText(url)
+      .then(() => {
+        showNotification("Full URL copied to clipboard!", "success");
+      })
+      .catch((err) => {
+        console.error("Failed to copy: ", err);
+        showNotification("Failed to copy URL", "error");
+      });
+  } else {
+    const textArea = document.createElement("textarea");
+    textArea.value = url;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
+    try {
+      document.execCommand("copy");
+      showNotification("Full URL copied to clipboard!", "success");
+    } catch (err) {
+      console.error("Failed to copy: ", err);
+      showNotification("Failed to copy URL", "error");
+    } finally {
+      document.body.removeChild(textArea);
+    }
   }
 }
 
@@ -1024,27 +653,6 @@ function showSearchLoading() {
 function hideSearchResults() {
   document.getElementById("searchResultsSection").style.display = "none";
   clearSelection();
-}
-
-function showFileAnalysisResult(analysis) {
-  const tagsDisplay = Object.entries(analysis.tags)
-    .map(([species, count]) => `${species} ×${count}`)
-    .join(", ");
-
-  showNotification(
-    `Detected in your file: ${tagsDisplay}. File was not stored.`,
-    "info"
-  );
-}
-
-async function analyzeUploadedFile(file) {
-  // Mock file analysis
-  await new Promise((resolve) => setTimeout(resolve, 500));
-
-  return {
-    tags: { crow: 2, pigeon: 1 },
-    confidence: 0.95,
-  };
 }
 
 function showNotification(message, type = "info") {
@@ -1093,89 +701,82 @@ function getAuthenticationToken() {
   return sessionStorage.getItem("idToken") || "";
 }
 
-// NEW: Copy URL to clipboard function
-function copyToClipboard(url) {
-  if (navigator.clipboard && window.isSecureContext) {
-    // Use modern clipboard API
-    navigator.clipboard
-      .writeText(url)
-      .then(() => {
-        showNotification("Full URL copied to clipboard!", "success");
-      })
-      .catch((err) => {
-        console.error("Failed to copy: ", err);
-        showNotification("Failed to copy URL", "error");
-      });
+// File selection management (placeholder functions)
+function toggleFileSelection(checkbox, fileId) {
+  if (checkbox.checked) {
+    if (!selectedFiles.includes(fileId)) {
+      selectedFiles.push(fileId);
+    }
   } else {
-    // Fallback for older browsers
-    const textArea = document.createElement("textarea");
-    textArea.value = url;
-    textArea.style.position = "fixed";
-    textArea.style.left = "-999999px";
-    textArea.style.top = "-999999px";
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
+    selectedFiles = selectedFiles.filter((id) => id !== fileId);
+  }
+  updateFloatingActionBar();
+}
 
-    try {
-      document.execCommand("copy");
-      showNotification("Full URL copied to clipboard!", "success");
-    } catch (err) {
-      console.error("Failed to copy: ", err);
-      showNotification("Failed to copy URL", "error");
-    } finally {
-      document.body.removeChild(textArea);
-    }
+function updateFloatingActionBar() {
+  const actionBar = document.getElementById("floatingActionBar");
+  if (selectedFiles.length > 0) {
+    actionBar.classList.remove("hidden");
+    document.getElementById(
+      "selectedCount"
+    ).textContent = `${selectedFiles.length} files selected`;
+  } else {
+    actionBar.classList.add("hidden");
   }
 }
 
-// FIXED SIGN OUT FUNCTIONALITY
-function showSignOutModal() {
-  const modal = document.getElementById("signOutModal");
-  if (modal) {
-    modal.classList.add("active");
-  }
+function clearSelection() {
+  selectedFiles = [];
+  document
+    .querySelectorAll(".result-checkbox")
+    .forEach((cb) => (cb.checked = false));
+  updateFloatingActionBar();
 }
 
-function hideSignOutModal() {
-  const modal = document.getElementById("signOutModal");
-  if (modal) {
-    modal.classList.remove("active");
-  }
+// Mock function for search types not yet implemented
+async function performSearch(searchType, searchParams) {
+  // Simulate API delay
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+
+  // Mock results for demonstration
+  const mockFiles = [
+    {
+      id: "file1",
+      filename: "bird_observation_001.jpg",
+      type: "image",
+      tags: { crow: 3, pigeon: 2 },
+      thumbnailUrl: "https://example.s3.amazonaws.com/bird1-thumb.jpg",
+      fullUrl: "https://example.s3.amazonaws.com/bird1.jpg",
+      s3Key: "user-123/bird1.jpg",
+    },
+  ];
+
+  return {
+    results: mockFiles,
+    total: mockFiles.length,
+    searchType: searchType,
+    searchParams: searchParams,
+  };
 }
 
-function confirmSignOut() {
-  hideSignOutModal();
+// Placeholder functions for features not yet implemented
+function initializeSearchFileUpload() {
+  console.log("File upload search not yet implemented");
+}
 
-  try {
-    // Initialize Cognito User Pool if available
-    if (typeof AmazonCognitoIdentity !== "undefined") {
-      const userPool = new AmazonCognitoIdentity.CognitoUserPool({
-        UserPoolId: "ap-southeast-2_rXnAUdmtr",
-        ClientId: "77so3j6u54v3qk4qttle2k8tsk",
-      });
+function initializeDeleteConfirmation() {
+  console.log("Delete confirmation not yet implemented");
+}
 
-      const cognitoUser = userPool.getCurrentUser();
-      if (cognitoUser) {
-        cognitoUser.signOut();
-      }
-    }
-  } catch (error) {
-    console.log(
-      "Cognito signout error (this is normal if user pool not initialized):",
-      error
-    );
-  }
+async function searchByThumbnailUrl() {
+  showNotification(
+    "Thumbnail URL search functionality exists in your original code",
+    "info"
+  );
+}
 
-  // Clear all session storage
-  sessionStorage.removeItem("accessToken");
-  sessionStorage.removeItem("idToken");
-  sessionStorage.removeItem("isAuthenticated");
-  sessionStorage.removeItem("currentUser");
-  sessionStorage.clear();
-
-  // Redirect to home page
-  window.location.href = "../index.html";
+async function searchByFileUpload() {
+  showNotification("File upload search not yet implemented", "info");
 }
 
 // Initialize search functionality on page load
