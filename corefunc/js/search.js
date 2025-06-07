@@ -157,7 +157,7 @@ async function refreshSpeciesCache() {
   showNotification("Species list refreshed!", "success");
 }
 
-// Search Functions - UPDATED with real API integration
+// Updated searchByTags function to handle both thumbnail and full URLs
 async function searchByTags() {
   const speciesSelect = document.getElementById("speciesSelect");
   const selectedSpecies = Array.from(speciesSelect.selectedOptions).map(
@@ -173,7 +173,6 @@ async function searchByTags() {
     showSearchLoading();
 
     // Build API URL with query parameters for your existing Lambda
-    // Using format: tag1=crow&tag2=pigeon (no counts for search-s)
     const queryParams = new URLSearchParams();
     selectedSpecies.forEach((species, index) => {
       queryParams.append(`tag${index + 1}`, species);
@@ -205,24 +204,50 @@ async function searchByTags() {
       // Convert API response to displayable format
       const searchResults = {
         results: data.links
-          ? data.links.map((url, index) => {
-              // Determine if it's a thumbnail (image) or direct file (video/audio)
-              const isThumbUrl = url && url.includes("thumb_");
-              const filename = url ? url.split("/").pop() : `file_${index}`;
+          ? await Promise.all(
+              data.links.map(async (url, index) => {
+                // Extract filename from URL
+                const urlParts = url.split("?")[0]; // Remove query parameters
+                const filename = urlParts.split("/").pop();
 
-              return {
-                id: `search-result-${index}`,
-                filename: filename,
-                type: isThumbUrl ? "image" : "video", // Simplified - could be audio too
-                tags: selectedSpecies.reduce((acc, species) => {
-                  acc[species] = 1; // We know it contains these species
-                  return acc;
-                }, {}),
-                thumbnailUrl: isThumbUrl ? url : null,
-                fullUrl: url,
-                s3Key: url ? url.replace(/^https?:\/\/[^\/]+\//, "") : "",
-              };
-            })
+                // Determine file type and create appropriate URLs
+                const isThumbUrl = filename && filename.startsWith("thumb_");
+                let thumbnailUrl = null;
+                let fullUrl = url;
+
+                if (isThumbUrl) {
+                  // This is a thumbnail URL, we need to get the full-size URL
+                  thumbnailUrl = url;
+
+                  // Generate full-size URL by removing 'thumb_' prefix
+                  const fullFilename = filename.replace("thumb_", "");
+                  const fullUrlBase = url
+                    .split("?")[0]
+                    .replace(filename, fullFilename);
+
+                  // For now, we'll use the same URL structure (you might need to call API for full URL)
+                  const queryString = url.split("?")[1];
+                  fullUrl = queryString
+                    ? `${fullUrlBase}?${queryString}`
+                    : fullUrlBase;
+                }
+
+                return {
+                  id: `search-result-${index}`,
+                  filename: filename,
+                  shortenedPath: filename, // Show just the filename
+                  type: isThumbUrl ? "image" : "video", // Simplified detection
+                  tags: selectedSpecies.reduce((acc, species) => {
+                    acc[species] = 1;
+                    return acc;
+                  }, {}),
+                  thumbnailUrl: thumbnailUrl,
+                  fullUrl: fullUrl,
+                  presignedUrl: url, // Store the original pre-signed URL
+                  s3Key: urlParts.replace(/^https?:\/\/[^\/]+\//, ""),
+                };
+              })
+            )
           : [],
         total: data.links ? data.links.length : 0,
         searchType: "tags",
@@ -252,6 +277,130 @@ async function searchByTags() {
     console.error("Search by tags failed:", error);
     showNotification("Search failed: " + error.message, "error");
     hideSearchResults();
+  }
+}
+
+// Updated createResultCard function
+function createResultCard(file, searchType) {
+  const tagsDisplay = Object.entries(file.tags)
+    .map(([species, count]) => `${species} ×${count}`)
+    .join(", ");
+
+  // Create thumbnail content based on file type
+  let thumbnailContent;
+  if (file.type === "image" && file.thumbnailUrl) {
+    thumbnailContent = `<img src="${file.thumbnailUrl}" alt="${file.filename}" class="result-thumbnail">`;
+  } else if (file.type === "video") {
+    thumbnailContent = `<div class="result-thumbnail result-icon">${getFileTypeIcon(
+      "video"
+    )}</div>`;
+  } else if (file.type === "audio") {
+    thumbnailContent = `<div class="result-thumbnail result-icon">${getFileTypeIcon(
+      "audio"
+    )}</div>`;
+  } else {
+    thumbnailContent = `<div class="result-thumbnail result-icon">${getFileTypeIcon(
+      "image"
+    )}</div>`;
+  }
+
+  const actionButtons = getActionButtons(file);
+
+  return `
+    <div class="result-card" data-file-id="${file.id}">
+      <input type="checkbox" class="result-checkbox" 
+             onchange="toggleFileSelection(this, '${file.id}')">
+      ${thumbnailContent}
+      <div class="result-content">
+        <div class="result-filename">${file.shortenedPath}</div>
+        <div class="result-tags">${tagsDisplay}</div>
+        <div class="result-file-type">${file.type.toUpperCase()}</div>
+        
+        <!-- New: Full Pre-signed URL Button -->
+        <div class="result-url-section">
+          <button class="btn-presigned-url" onclick="showFullPresignedUrl('${
+            file.id
+          }')">
+            📋 Full Pre-Signed URL
+          </button>
+        </div>
+        
+        <div class="result-actions">
+          ${actionButtons}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// New function to show full pre-signed URL
+function showFullPresignedUrl(fileId) {
+  const file = currentSearchResults.find((f) => f.id === fileId);
+  if (file && file.presignedUrl) {
+    // Create a modal or alert with the full URL
+    const modal = document.createElement("div");
+    modal.className = "presigned-url-modal";
+    modal.innerHTML = `
+      <div class="modal-content">
+        <h3>Full Pre-Signed URL</h3>
+        <div class="url-display">
+          <textarea readonly>${file.presignedUrl}</textarea>
+        </div>
+        <div class="modal-buttons">
+          <button onclick="copyToClipboard('${file.presignedUrl.replace(
+            /'/g,
+            "\\'"
+          )}')">📋 Copy URL</button>
+          <button onclick="this.closest('.presigned-url-modal').remove()">Close</button>
+        </div>
+      </div>
+    `;
+
+    // Style the modal
+    modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+    `;
+
+    const modalContent = modal.querySelector(".modal-content");
+    modalContent.style.cssText = `
+      background: white;
+      padding: 2rem;
+      border-radius: 0.5rem;
+      max-width: 80%;
+      max-height: 80%;
+    `;
+
+    const textarea = modal.querySelector("textarea");
+    textarea.style.cssText = `
+      width: 100%;
+      height: 200px;
+      margin: 1rem 0;
+      font-family: monospace;
+      font-size: 0.8rem;
+    `;
+
+    document.body.appendChild(modal);
+  } else {
+    showNotification("URL not found", "error");
+  }
+}
+
+// Updated viewFile function to use full-size URL
+function viewFile(fileId) {
+  const file = currentSearchResults.find((f) => f.id === fileId);
+  if (file && file.fullUrl) {
+    window.open(file.fullUrl, "_blank");
+  } else {
+    showNotification("File not found", "error");
   }
 }
 
