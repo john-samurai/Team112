@@ -3,11 +3,11 @@ let selectedFiles = [];
 let currentSearchResults = [];
 let searchUploadedFile = null;
 
-// Configuration for search endpoints - UPDATED WITH YOUR ACTUAL API ID
+// Configuration for search endpoints - UPDATED WITH CORRECT PATH
 const SEARCH_API_CONFIG = {
-  // Your actual API Gateway endpoint
+  // Fixed: Added /birdtag/ to the path to match your API Gateway structure
   thumbnailSearchEndpoint:
-    "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/search-t",
+    "https://t89sef6460.execute-api.ap-southeast-2.amazonaws.com/dev/birdtag/search-t",
 
   // Other endpoints (to be configured later)
   searchByTagsEndpoint:
@@ -237,15 +237,21 @@ async function searchByThumbnailUrl() {
     if (results && results.links && results.links.length > 0) {
       // Convert API response to displayable format
       const displayResults = {
-        results: results.links.map((fullImageUrl, index) => ({
-          id: `thumbnail-result-${index}`,
-          filename: fullImageUrl.split("/").pop(),
-          type: "image",
-          tags: { detected: 1 }, // Placeholder since we don't get tags from this API
-          thumbnailUrl: thumbnailUrl, // Original thumbnail URL
-          fullUrl: fullImageUrl,
-          s3Key: fullImageUrl.split("/").slice(-2).join("/"), // Extract relative path
-        })),
+        results: results.links.map((fullImageUrl, index) => {
+          // Extract clean filename (without query parameters)
+          const cleanUrl = fullImageUrl.split("?")[0]; // Remove query parameters
+          const filename = cleanUrl.split("/").pop();
+
+          return {
+            id: `thumbnail-result-${index}`,
+            filename: filename, // Clean filename without query params
+            type: "image",
+            tags: { detected: 1 }, // Placeholder since we don't get tags from this API
+            thumbnailUrl: thumbnailUrl, // Original thumbnail URL
+            fullUrl: fullImageUrl, // Keep full pre-signed URL for access
+            s3Key: cleanUrl.split("/").slice(-2).join("/"), // Extract relative path from clean URL
+          };
+        }),
         total: results.links.length,
         searchType: "thumbnail",
         searchParams: { thumbnailUrl: thumbnailUrl },
@@ -279,7 +285,7 @@ async function searchByThumbnailUrl() {
 // NEW: Real API call for thumbnail search with Cognito authentication
 async function searchThumbnailAPI(thumbnailFilename) {
   try {
-    // Get Cognito ID token (not access token)
+    // Get Cognito ID token
     const idToken = getAuthenticationToken();
 
     if (!idToken) {
@@ -297,15 +303,25 @@ async function searchThumbnailAPI(thumbnailFilename) {
       SEARCH_API_CONFIG.thumbnailSearchEndpoint
     }?${queryParams.toString()}`;
 
+    // Try different authorization header formats
     const requestHeaders = {
       "Content-Type": "application/json",
-      Authorization: idToken, // For Cognito User Pool, use the ID token directly
     };
+
+    // Try different authorization formats that Cognito might expect
+    if (idToken.startsWith("Bearer ")) {
+      requestHeaders["Authorization"] = idToken; // Already has Bearer prefix
+    } else {
+      // Try both formats - some APIs expect Bearer prefix, some don't
+      requestHeaders["Authorization"] = idToken; // Direct token
+      // Uncomment next line if the above doesn't work:
+      // requestHeaders['Authorization'] = `Bearer ${idToken}`;
+    }
 
     const response = await fetch(apiUrl, {
       method: "GET",
       headers: requestHeaders,
-      mode: "cors", // Enable CORS
+      mode: "cors",
     });
 
     if (!response.ok) {
@@ -572,39 +588,59 @@ function displaySearchResults(results, searchType) {
   clearSelection();
 }
 
-// NEW: Special result card for thumbnail search
+// NEW: Special result card for thumbnail search (without checkbox)
 function createThumbnailResultCard(file) {
+  // Create a shortened display version of the full-size URL
+  const fullUrl = file.fullUrl;
+  const shortUrl =
+    fullUrl.length > 80
+      ? fullUrl.substring(0, 60) +
+        "..." +
+        fullUrl.substring(fullUrl.length - 20)
+      : fullUrl;
+
   return `
     <div class="result-card thumbnail-result-card" data-file-id="${file.id}">
-      <input type="checkbox" class="result-checkbox" 
-             onchange="toggleFileSelection(this, '${file.id}')">
+      <!-- Removed checkbox for thumbnail search -->
       
       <!-- Large Preview Display -->
       <div class="thumbnail-result-preview">
         <img src="${file.fullUrl}" alt="${file.filename}" 
              class="large-image-preview" 
-             onerror="this.src='${file.thumbnailUrl}'; this.alt='Image preview failed';">
+             onerror="this.src='${
+               file.thumbnailUrl
+             }'; this.alt='Image preview failed';">
       </div>
       
       <div class="thumbnail-result-info">
-        <div class="result-filename"><strong>Filename:</strong> ${file.filename}</div>
+        <div class="result-filename"><strong>Filename:</strong> ${
+          file.filename
+        }</div>
         <div class="result-urls">
           <div class="url-item">
             <strong>Thumbnail URL:</strong> 
-            <a href="${file.thumbnailUrl}" target="_blank" class="url-link">
-              ${file.thumbnailUrl}
-            </a>
+            <span class="url-text">${file.thumbnailUrl}</span>
           </div>
           <div class="url-item">
-            <strong>Full-size URL:</strong> 
-            <a href="${file.fullUrl}" target="_blank" class="url-link">
-              ${file.fullUrl}
+            <strong>Full-size URL (Pre-signed URL):</strong> 
+            <a href="${file.fullUrl}" target="_blank" class="url-link" title="${
+    file.fullUrl
+  }">
+              ${shortUrl}
             </a>
+            <button class="btn-copy-url" onclick="copyToClipboard('${file.fullUrl.replace(
+              /'/g,
+              "\\'"
+            )}')">📋 Copy Full URL</button>
           </div>
         </div>
         <div class="result-actions">
-          <button class="btn-action" onclick="viewFile('${file.id}')">View Full Size</button>
-          <button class="btn-action" onclick="downloadFile('${file.id}')">Download</button>
+          <button class="btn-action" onclick="viewFile('${
+            file.id
+          }')">View Full Size</button>
+          <button class="btn-action" onclick="downloadFile('${
+            file.id
+          }')">Download</button>
         </div>
       </div>
     </div>
@@ -1055,6 +1091,42 @@ function showNotification(message, type = "info") {
 
 function getAuthenticationToken() {
   return sessionStorage.getItem("idToken") || "";
+}
+
+// NEW: Copy URL to clipboard function
+function copyToClipboard(url) {
+  if (navigator.clipboard && window.isSecureContext) {
+    // Use modern clipboard API
+    navigator.clipboard
+      .writeText(url)
+      .then(() => {
+        showNotification("Full URL copied to clipboard!", "success");
+      })
+      .catch((err) => {
+        console.error("Failed to copy: ", err);
+        showNotification("Failed to copy URL", "error");
+      });
+  } else {
+    // Fallback for older browsers
+    const textArea = document.createElement("textarea");
+    textArea.value = url;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
+    try {
+      document.execCommand("copy");
+      showNotification("Full URL copied to clipboard!", "success");
+    } catch (err) {
+      console.error("Failed to copy: ", err);
+      showNotification("Failed to copy URL", "error");
+    } finally {
+      document.body.removeChild(textArea);
+    }
+  }
 }
 
 // FIXED SIGN OUT FUNCTIONALITY
